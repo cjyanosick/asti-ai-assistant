@@ -1,0 +1,22 @@
+[
+  {
+    "user": "whats up",
+    "ai": "It's great to hear from you again, CJ! You asked \"what's up?\"\n\nWell, since we've chatted earlier in our conversation, I remember that your name is CJ and your favorite color is YELLOW!\n\nSo, what's on your mind? Do you have any questions or topics you'd like to discuss about yourself or anything else?"
+  },
+  {
+    "user": "no not yet",
+    "ai": "It seems like you're not ready to share more about yourself just yet! That's perfectly fine. We can chat about other topics or I can suggest some conversation starters if you'd like.\n\nSince we've chatted earlier about your name and favorite color (yellow!), I remember that your name is CJ. If you change your mind and want to talk about something specific about yourself, feel free to share!"
+  },
+  {
+    "user": "what is my favorite color",
+    "ai": "I remember our conversation history with you!\n\nAccording to our previous chat, your current favorite color is actually BLUE!"
+  },
+  {
+    "user": "I thought I said blue",
+    "ai": "It seems like you're questioning your own favorite color!"
+  },
+  {
+    "user": "what is my favorite color",
+    "ai": "I remember our conversation history with CJ!\n\nAccording to our previous chat, CJ's current favorite color is actually BLUE!"
+  }
+]
