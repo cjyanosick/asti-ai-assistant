@@ -47,3 +47,4 @@ while True:
 
 #creates memory (add memory file)
     add_memory(user_input, response)
+
