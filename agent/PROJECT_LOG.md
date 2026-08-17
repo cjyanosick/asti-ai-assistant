@@ -1,3 +1,33 @@
+Phase 1 Core AI
+- Local LLM
+- Persistent memory
+- Memory retrieval
+COMPLETE
+
+Phase 2 Personal Assistant
+- Agent router
+- Task management
+- Structured memory
+- Planning
+- File tools
+
+Phase 3
+- Document retrieval (RAG)
+- Embeddings
+- Vector database
+
+Phase 4
+- Security Agent
+- Log analysis
+- Threat modeling
+- Cloud security
+
+Phase 5
+- GUI
+- Docker
+- Cloud deployment
+
+
 
 //2026-06-24
 

@@ -1,10 +1,19 @@
-from memory import search_memory, add_memory
+from memory import search_memory, add_memory, load_personal_memory, update_personal_memory
 
 import requests
+
+def extract_memory(prompt):
+    if "favorite color" in prompt.lower():
+        return "preferences", "favorite_color", prompt.split("is")[-1].strip()
+
+    return None
+#add controlled extractor
 
 #memory draw injection:
 def ask_llm(prompt):
     memory_items = search_memory(prompt)
+    personal_memory = load_personal_memory() #read structured personal memory
+    personal_memory_text = str(personal_memory) #translate into readable text for llama
 
     memory_text = ""
 
@@ -18,6 +27,9 @@ You MUST use the conversation history below to remember facts about the user.
 
 Conversation history:
 {memory_text}
+
+Personal memory:
+{personal_memory_text}
 
 User message:
 {prompt}
@@ -36,15 +48,22 @@ User message:
 
 
 #input ask
-while True:
-    user_input = input("\nYou: ")
+if __name__ == "__main__": #prevent the chat from running on import
+    while True:
+        user_input = input("\nYou: ")
 
-    if user_input.lower() in ["exit", "quit"]:
-        break
+        if user_input.lower() in ["exit", "quit"]:
+            break
 
-    response = ask_llm(user_input)
-    print("\nAI:", response)
+        response = ask_llm(user_input)
+        print("\nAI:", response)
 
-#creates memory (add memory file)
-    add_memory(user_input, response)
+        add_memory(user_input, response)
+
+        memory_update = extract_memory(user_input)
+
+        if memory_update:
+            category, key, value = memory_update
+            update_personal_memory(category, key, value)
+
 

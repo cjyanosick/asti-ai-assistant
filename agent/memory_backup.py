@@ -54,36 +54,3 @@ def search_memory(query):
     results.sort(reverse=True, key=lambda x: x[0])
 
     return [item for score, item in results[:5]] 
-
-PERSONAL_MEMORY_FILE = "personal_memory.json"
-
-def load_personal_memory():
-    if not os.path.exists(PERSONAL_MEMORY_FILE):
-        return {
-            "identity": {},
-            "preferences": {},
-            "goals": {},
-            "projects": {},
-            "people": {},
-            "other": {}
-        }
-
-    with open(PERSONAL_MEMORY_FILE, "r") as f:
-        return json.load(f)
-
-def save_personal_memory(memory):
-    with open(PERSONAL_MEMORY_FILE, "w") as f:
-        json.dump(memory, f, indent=2)
-
-def add_personal_memory(category, key, value):
-    memory = load_personal_memory()
-
-    if category not in memory:
-        memory[category] = {}
-
-    memory[category][key] = value
-
-    save_personal_memory(memory)
-
-def update_personal_memory(category, key, value): #keep memory managemnet seperate from the main conversation logic
-    add_personal_memory(category, key, value)

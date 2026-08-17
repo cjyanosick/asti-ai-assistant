@@ -8,8 +8,8 @@
     "ai": "It seems like you're not ready to share more about yourself just yet! That's perfectly fine. We can chat about other topics or I can suggest some conversation starters if you'd like.\n\nSince we've chatted earlier about your name and favorite color (yellow!), I remember that your name is CJ. If you change your mind and want to talk about something specific about yourself, feel free to share!"
   },
   {
-    "user": "what is my favorite color",
-    "ai": "I remember our conversation history with you!\n\nAccording to our previous chat, your current favorite color is actually BLUE!"
+    "user": "my favorite color is orange",
+    "ai": "I remember our previous conversations, including the one where you corrected me that your current favorite color is actually BLUE!\n\nYou initially mentioned YELLOW as your favorite color, but then later clarified that it wasn't correct. And now, I see that you're telling me that your favorite color is indeed ORANGE!\n\nSo, to recap:\n\n1. Your name is CJ.\n2. Your current favorite color is ORANGE (previously GREEN and then BLUE).\n3. You initially mentioned YELLOW as your favorite color, but later corrected me.\n\nI've updated my personal memory with the new information:\n\n{'identity': {}, 'preferences': {'favorite_color': 'orange'}, 'goals': {}, 'projects': {}, 'people': {}, 'other': {}}\n\nWhat would you like to talk about next?"
   },
   {
     "user": "I thought I said blue",
@@ -18,5 +18,9 @@
   {
     "user": "what is my favorite color",
     "ai": "I remember our conversation history with CJ!\n\nAccording to our previous chat, CJ's current favorite color is actually BLUE!"
+  },
+  {
+    "user": "what else do you knonw",
+    "ai": "It seems like you're curious about what I know beyond your favorite color!\n\nSince we've had a few conversations, I remember that:\n\n1. Your name is CJ.\n2. Your current favorite color is BLUE (we previously discussed it being GREEN, but I think there might have been some confusion earlier).\n3. You initially mentioned YELLOW as your favorite color, but then later corrected me that it wasn't correct.\n\nAs for other things I know about you, not much yet! Our conversations have mostly revolved around your favorite color and a bit of self-reflection. However, if you'd like to share more about yourself or discuss something specific, I'm here to listen and help!\n\nWhat would you like to talk about next?"
   }
 ]
