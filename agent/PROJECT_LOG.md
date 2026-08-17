@@ -25,7 +25,7 @@ Phase 4
 Phase 5
 - GUI
 - Docker
-- Cloud deployment
+- Cloud deployment #maybe
 
 
 
@@ -63,3 +63,39 @@ The agent can now:
 - Remember user preferences across sessions
 - Update facts when corrected
 - Retrieve relevant past context dynamically
+
+
+
+
+
+8/16/2026
+
+## Milestone: Structured Personal Memory
+
+### What was built
+- Added a dedicated `personal_memory.json` for structured user facts.
+- Added functions to load and save structured personal memory.
+- Added the ability to add and overwrite stored facts.
+- Added automatic memory extraction for recognized user information.
+- Connected automatic extraction to the main assistant loop.
+- Verified that memory persists after the assistant exits.
+
+### Architecture improvement
+The assistant now separates structured personal facts from conversation history.
+
+### Example
+A statement such as:
+"My favorite color is orange"
+
+is extracted and stored as:
+
+{
+  "preferences": {
+    "favorite_color": "orange"
+  }
+}
+
+### Result
+The assistant can now automatically recognize, update, and persist structured personal information across sessions.
+
+
