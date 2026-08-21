@@ -120,3 +120,15 @@ User → ASTI → Model Provider → Ollama → Local Model
 This creates the foundation for supporting interchangeable AI models and providers without rebuilding the assistant.
 
 ASTI will remain local/private by default, while the architecture can later support optional additional local or cloud providers.
+
+
+## Milestone: Structured Memory as Source of Truth
+
+### What changed
+- Fixed an issue where old conversation history could override current personal facts.
+- Updated prompt logic so structured personal memory is authoritative.
+- Conversation history is now treated as context only.
+
+### Result
+When conversation history conflicts with structured personal memory, ASTI now uses the structured value.
+
