@@ -1,7 +1,6 @@
+from agent.config import DEFAULT_PROVIDER, DEFAULT_MODEL
 import requests
 
-DEFAULT_MODEL = "llama3"
-DEFAULT_PROVIDER = "ollama"
 
 
 def generate_response(prompt):
