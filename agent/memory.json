@@ -8,8 +8,8 @@
     "ai": "It seems like you're not ready to share more about yourself just yet! That's perfectly fine. We can chat about other topics or I can suggest some conversation starters if you'd like.\n\nSince we've chatted earlier about your name and favorite color (yellow!), I remember that your name is CJ. If you change your mind and want to talk about something specific about yourself, feel free to share!"
   },
   {
-    "user": "my favorite color is orange",
-    "ai": "I remember our previous conversations, including the one where you corrected me that your current favorite color is actually BLUE!\n\nYou initially mentioned YELLOW as your favorite color, but then later clarified that it wasn't correct. And now, I see that you're telling me that your favorite color is indeed ORANGE!\n\nSo, to recap:\n\n1. Your name is CJ.\n2. Your current favorite color is ORANGE (previously GREEN and then BLUE).\n3. You initially mentioned YELLOW as your favorite color, but later corrected me.\n\nI've updated my personal memory with the new information:\n\n{'identity': {}, 'preferences': {'favorite_color': 'orange'}, 'goals': {}, 'projects': {}, 'people': {}, 'other': {}}\n\nWhat would you like to talk about next?"
+    "user": "what is my favorite color",
+    "ai": "I remember our conversation history with CJ!\n\nAccording to our previous chat, CJ's current favorite color is actually ORANGE!\n\nWould you like to confirm or clarify anything about your favorite color?"
   },
   {
     "user": "I thought I said blue",

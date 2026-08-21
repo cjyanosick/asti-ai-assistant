@@ -1,3 +1,4 @@
+from model_provider import generate_response
 from memory import search_memory, add_memory, load_personal_memory, update_personal_memory
 
 import requests
