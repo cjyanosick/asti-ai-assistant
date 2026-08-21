@@ -1,3 +1,4 @@
+import re
 from model_provider import generate_response
 from memory import search_memory, add_memory, load_personal_memory, update_personal_memory
 
@@ -6,9 +7,17 @@ import requests
 def extract_memory(prompt):
     prompt_lower = prompt.lower().strip()
 
-    if prompt_lower.startswith("my favorite color is "):
-        value = prompt[len("my favorite color is "):].strip()
-        return "preferences", "favorite_color", value
+    favorite_match = re.match(r"my favorite (.+?) is (.+)", prompt, re.IGNORECASE)
+
+    if favorite_match:
+        preference = favorite_match.group(1).strip().lower().replace(" ", "_")
+        value = favorite_match.group(2).strip()
+
+    return "preferences", f"favorite_{preference}", value
+
+    if prompt_lower.startswith("my name is "):
+        value = prompt[len("my name is "):].strip()
+        return "identity", "name", value
 
     return None
 #add controlled extractor
