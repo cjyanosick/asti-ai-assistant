@@ -1,2 +1,2 @@
 DEFAULT_PROVIDER = "ollama"
-DEFAULT_MODEL = "llama3"
+DEFAULT_MODEL = "qwen2.5:3b"
