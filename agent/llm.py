@@ -12,14 +12,20 @@ def extract_memory(prompt):
     if favorite_match:
         preference = favorite_match.group(1).strip().lower().replace(" ", "_")
         value = favorite_match.group(2).strip()
-
-    return "preferences", f"favorite_{preference}", value
+        return "preferences", f"favorite_{preference}", value
 
     if prompt_lower.startswith("my name is "):
         value = prompt[len("my name is "):].strip()
         return "identity", "name", value
 
+    goal_match = re.match(r"my goal is to (.+)", prompt, re.IGNORECASE)
+
+    if goal_match:
+        goal = goal_match.group(1).strip()
+        return "goals", "current_goal", goal
+
     return None
+    
 #add controlled extractor
 
 #memory draw injection:
