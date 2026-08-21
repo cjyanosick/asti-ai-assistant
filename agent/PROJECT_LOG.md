@@ -99,3 +99,24 @@ is extracted and stored as:
 The assistant can now automatically recognize, update, and persist structured personal information across sessions.
 
 
+8/21/2026
+
+## Milestone: Model Provider Abstraction
+
+### What changed
+- Added a dedicated `model_provider.py` module.
+- Removed direct Ollama communication from the main assistant logic.
+- `llm.py` now sends prompts through the model provider layer.
+- Verified that existing structured memory continues to work after the change.
+
+### Architecture improvement
+ASTI's assistant logic is no longer directly tied to Ollama.
+
+Current flow:
+
+User → ASTI → Model Provider → Ollama → Local Model
+
+### Why this matters
+This creates the foundation for supporting interchangeable AI models and providers without rebuilding the assistant.
+
+ASTI will remain local/private by default, while the architecture can later support optional additional local or cloud providers.
