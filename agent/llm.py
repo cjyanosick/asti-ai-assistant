@@ -4,8 +4,11 @@ from memory import search_memory, add_memory, load_personal_memory, update_perso
 import requests
 
 def extract_memory(prompt):
-    if "favorite color" in prompt.lower():
-        return "preferences", "favorite_color", prompt.split("is")[-1].strip()
+    prompt_lower = prompt.lower().strip()
+
+    if prompt_lower.startswith("my favorite color is "):
+        value = prompt[len("my favorite color is "):].strip()
+        return "preferences", "favorite_color", value
 
     return None
 #add controlled extractor
@@ -24,7 +27,9 @@ def ask_llm(prompt):
     full_prompt = f"""
 You are a helpful AI assistant.
 
-You MUST use the conversation history below to remember facts about the user.
+Personal memory is the authoritative source for facts about the user.
+If conversation history conflicts with personal memory, always trust personal memory.
+Use conversation history only for conversational context.
 
 Conversation history:
 {memory_text}
@@ -36,16 +41,7 @@ User message:
 {prompt}
 """
 
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "llama3",
-            "prompt": full_prompt,
-            "stream": False
-        }
-    )
-
-    return response.json()["response"]
+    return generate_response(full_prompt)
 
 
 #input ask
