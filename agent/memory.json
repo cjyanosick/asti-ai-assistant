@@ -30,5 +30,17 @@
   {
     "user": "my favorite food is pizza",
     "ai": "That's great to hear, CJ! It's interesting to learn more about your preferences. According to my personal memory, your favorite food is pizza. Is there anything else you'd like to share or discuss today?"
+  },
+  {
+    "user": "my goal is to save 10,000",
+    "ai": "That's a clear and specific goal, CJ. Based on my personal memory, it seems your favorite color is orange and your favorite food is pizza. Saving a substantial amount like 10,000 can be a challenging but rewarding goal. \n\nWould you like to discuss any strategies or tips for achieving your goal, or do you have any questions about your preferences or personal history that I can help with?"
+  },
+  {
+    "user": "my goal is to save 10,000",
+    "ai": "Understood, Carter. Your goal to save 10,000 is a clear and specific goal. Based on my personal memory, your favorite color is orange and your favorite food is pizza.\n\nSaving a substantial amount like 10,000 can be a challenging but rewarding goal. Would you like to discuss any strategies or tips for achieving your goal, or do you have any questions about your preferences or personal history that I can help with?"
+  },
+  {
+    "user": "my goal is to save 10,000",
+    "ai": "Understood, Carter. Your goal to save 10,000 is a clear and specific goal. Based on my personal memory, your favorite color is orange and your favorite food is pizza.\n\nSaving a substantial amount like 10,000 can be a challenging but rewarding goal. Let's discuss some strategies or tips that might help you achieve your savings goal.\n\nWhat approaches or methods do you think would be most effective for you in reaching this goal? Are there any particular challenges you foresee in saving this amount, and how might you address those challenges?"
   }
 ]

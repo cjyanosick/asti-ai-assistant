@@ -6,7 +6,9 @@
     "favorite_color": "orange",
     "favorite_food": "pizza"
   },
-  "goals": {},
+  "goals": {
+    "current_goal": "save 10,000"
+  },
   "projects": {},
   "people": {},
   "other": {}
