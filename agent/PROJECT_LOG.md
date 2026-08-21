@@ -171,3 +171,16 @@ Available tested models:
 
 ### Result
 The underlying model can now be changed through configuration while the assistant, memory system, and application logic remain unchanged.
+
+## Milestone: Generalized Preference Extraction
+
+### What changed
+- Expanded personal memory extraction beyond favorite color.
+- Added regex-based parsing for statements such as:
+  - "my favorite food is pizza"
+  - "my favorite movie is Interstellar"
+  - "my favorite sport is football"
+- Preference names are normalized into structured memory keys.
+
+### Result
+ASTI can now automatically store multiple types of user preferences instead of relying on a hardcoded favorite-color rule.
