@@ -150,3 +150,24 @@ User → ASTI → Model Provider → Selected Provider → Model
 ### Result
 The assistant continues to work with Ollama while the codebase is now prepared for additional local or optional cloud providers later.
 
+## Milestone: Interchangeable Local Models
+
+### What changed
+- Installed Qwen 2.5 3B as a second local model.
+- Switched ASTI from Llama 3 to Qwen through `config.py`.
+- Fixed the provider configuration import path.
+- Verified that ASTI's existing memory and conversation logic worked without modification.
+
+### Architecture improvement
+ASTI is no longer dependent on a specific local language model.
+
+Current architecture:
+
+ASTI → Model Provider → Ollama → Selected Local Model
+
+Available tested models:
+- Llama 3
+- Qwen 2.5 3B
+
+### Result
+The underlying model can now be changed through configuration while the assistant, memory system, and application logic remain unchanged.
