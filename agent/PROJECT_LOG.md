@@ -132,3 +132,21 @@ ASTI will remain local/private by default, while the architecture can later supp
 ### Result
 When conversation history conflicts with structured personal memory, ASTI now uses the structured value.
 
+## Milestone: Configurable Model Provider Routing
+
+### What changed
+- Added a configurable default provider.
+- Added provider-routing logic inside `model_provider.py`.
+- Ollama remains the default local provider.
+- Unsupported providers now raise a clear error instead of failing silently.
+
+### Architecture improvement
+ASTI now routes model requests through a provider layer rather than assuming a single backend.
+
+Current flow:
+
+User → ASTI → Model Provider → Selected Provider → Model
+
+### Result
+The assistant continues to work with Ollama while the codebase is now prepared for additional local or optional cloud providers later.
+
