@@ -1,4 +1,4 @@
-from agent.config import DEFAULT_PROVIDER, DEFAULT_MODEL
+from config import DEFAULT_PROVIDER, DEFAULT_MODEL
 import requests
 
 
