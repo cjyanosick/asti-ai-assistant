@@ -1,7 +1,10 @@
 {
-  "identity": {},
+  "identity": {
+    "name": "carter"
+  },
   "preferences": {
-    "favorite_color": "orange"
+    "favorite_color": "orange",
+    "favorite_food": "pizza"
   },
   "goals": {},
   "projects": {},
