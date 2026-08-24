@@ -184,3 +184,32 @@ The underlying model can now be changed through configuration while the assistan
 
 ### Result
 ASTI can now automatically store multiple types of user preferences instead of relying on a hardcoded favorite-color rule.
+
+8/23/2026
+
+## Milestone: AI-Powered Structured Memory Extraction
+
+### What changed
+- Replaced hardcoded memory extraction rules with model-based structured extraction.
+- Added a JSON schema for memory decisions.
+- Added structured-response support through the model provider layer.
+- Qwen now determines whether a user message contains durable personal information.
+- Automatically classifies memories into categories such as identity, preferences, goals, projects, people, or other.
+- Automatically generates a structured key and value.
+- Connected extraction to persistent personal memory storage.
+
+### Example
+User statement:
+"I prefer aisle seats when I fly"
+
+Extracted memory:
+{
+  "category": "preferences",
+  "key": "preference_for_aisle_seats_when_flying",
+  "value": "prefer aisle seats when flying"
+}
+
+### Result
+ASTI can now learn new types of personal information without requiring a new hardcoded rule for every topic.
+
+
