@@ -50,5 +50,49 @@
   {
     "user": "i prefer aisle seats when I fly",
     "ai": "Understood, Carter. It sounds like you have a preference for aisle seats when flying. Based on my personal memory, you prefer aisle seats when flying, your favorite color is orange, and your favorite food is pizza. Your current goal is to save 10,000.\n\nIs there anything specific you would like to discuss today regarding your preferences or goals, or do you have any other questions about yourself that I can help with?"
+  },
+  {
+    "user": "hello",
+    "ai": "Hello there! How can I assist you today?"
+  },
+  {
+    "user": "what is my name",
+    "ai": "Based on the personal memory I have, your name is Carter. How can I assist you today, Carter? Do you have any questions or topics you'd like to discuss?"
+  },
+  {
+    "user": "I prefer dark mode",
+    "ai": "Understood, Carter. It sounds like you also prefer dark mode. Based on my personal memory, you prefer aisle seats when flying, your favorite color is orange, your favorite food is pizza, your current goal is to save 10,000, and you prefer dark mode.\n\nIs there anything specific you would like to discuss today regarding your preferences or goals, or do you have any other questions about yourself that I can help with?"
+  },
+  {
+    "user": "I actually want to save 20,000 dollars instead",
+    "ai": "Got it, Carter. It seems your goal has changed to saving 20,000 dollars. Based on my personal memory, your favorite color is orange and your favorite food is pizza. Would you like to discuss any strategies or tips for achieving your new goal of saving 20,000 dollars, or do you have any other questions or preferences that I can help with?"
+  },
+  {
+    "user": "I am working on my ASTI Ai agent",
+    "ai": "That's a great project, Carter! Building an AI agent like yourself can be both exciting and challenging. Saving 10,000 can be a significant milestone in the development of your AI agent. Here are a few strategies you might consider as you work towards your goal:\n\n1. **Create a Detailed Plan**: Break down your goal into smaller, manageable steps. For example, you could aim to save a certain amount each month or week.\n\n2. **Automate Savings**: Consider setting up automated savings or investment accounts. This can help you save more efficiently and ensure that you consistently contribute to your goal.\n\n3. **Monitor Your Progress**: Keep track of your savings progress. Seeing your progress can be motivating and help you stay on track.\n\n4. **Review Your Budget**: Ensure that you have a clear understanding of your current spending and income. This can help you identify areas where you might be able to cut back or allocate more funds to your savings.\n\n5. **Seek Advice**: Sometimes, consulting with a financial advisor can provide valuable insights and guidance tailored to your specific situation.\n\n6. **Stay Motivated**: Keeping your goals and progress in mind can be very motivating. Consider setting up reminders or milestones to celebrate your achievements along the way.\n\nHow are you planning to approach your savings goal, and do you have any specific challenges or areas where you could use some guidance?"
+  },
+  {
+    "user": "my brothers name is jake",
+    "ai": "Thank you for that information, Carter. I remember that your brothers' name is Jake. Is there anything specific you would like to discuss today, or do you have any other questions or topics you'd like to explore further?"
+  },
+  {
+    "user": "seems like you are wokring well",
+    "ai": "Thank you for the positive feedback, I'm glad I'm working well for you, CJ! It's good to hear that your favorite food is pizza. Saving 10,000 is a significant goal, and it's great to hear that you have a current goal in mind.\n\nIf you have any other topics you'd like to discuss or questions you'd like to ask, I'm here to help. What else would you like to talk about today?"
+  },
+  {
+    "user": "I said I want to save 20000 instead",
+    "ai": "Got it, Carter. It seems your goal has changed to saving 20,000 dollars. Based on my personal memory, your favorite color is orange and your favorite food is pizza. Saving a substantial amount like 20,000 can be quite ambitious, but with the right strategies, it's definitely achievable.\n\nWould you like to discuss any strategies or tips for achieving your new goal of saving 20,000 dollars, or do you have any questions or preferences that I can help with?"
+  },
+  {
+    "user": "what is my saving goal?",
+    "ai": "Based on my personal memory, your current goal is to save 10,000. How can I assist you with this goal today, Carter?"
+  },
+  {
+    "user": "I actually want to save 20000 dollars",
+    "ai": "Got it, Carter. It seems your goal has changed to saving 20,000 dollars. Based on my personal memory, your favorite color is orange and your favorite food is pizza. \n\nWould you like to discuss any strategies or tips for achieving your new goal of saving 20,000 dollars, or do you have any other questions or preferences that I can help with?"
+  },
+  {
+    "user": "I actually wnat to save 25000",
+    "ai": "Got it, Carter. It seems your goal has changed to saving 25,000 dollars. Based on my personal memory, your favorite color is orange and your favorite food is pizza.\n\nWould you like to discuss any strategies or tips for achieving your new goal of saving 25,000 dollars, or do you have any other questions or preferences that I can help with?"
   }
 ]
