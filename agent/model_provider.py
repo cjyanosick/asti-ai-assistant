@@ -21,18 +21,24 @@ def generate_response(prompt):
 def generate_structured_response(prompt, schema):
     if DEFAULT_PROVIDER == "ollama":
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            "http://localhost:11434/api/chat",
             json={
                 "model": DEFAULT_MODEL,
-                "prompt": prompt,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
                 "stream": False,
                 "format": schema,
                 "options": {
                     "temperature": 0
                 }
-            }
+            },
+            timeout=30
         )
 
-        return response.json()["response"]
+        return response.json()["message"]["content"]
 
     raise ValueError(f"Unsupported provider: {DEFAULT_PROVIDER}")

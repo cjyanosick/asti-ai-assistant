@@ -12,17 +12,12 @@ MEMORY_SCHEMA = {
             "type": "boolean"
         },
         "category": {
-            "type": "string",
-            "enum": [
-                "identity",
-                "preferences",
-                "goals",
-                "projects",
-                "people",
-                "other"
-            ]
+            "type": "string"
         },
-        "key": {
+        "subject": {
+            "type": "string"
+        },
+        "attribute": {
             "type": "string"
         },
         "value": {
@@ -32,10 +27,65 @@ MEMORY_SCHEMA = {
     "required": [
         "should_remember",
         "category",
-        "key",
+        "subject",
+        "attribute",
         "value"
     ]
 }
+
+ALLOWED_MEMORY_CATEGORIES = {
+    "identity",
+    "preferences",
+    "goals",
+    "projects",
+    "people",
+    "other"
+}
+
+def normalize_category(category, attribute=""):
+    category = category.lower().strip()
+    attribute = attribute.lower().strip()
+
+    if "preference" in attribute:
+        return "preferences"
+
+    if "goal" in attribute:
+        return "goals"
+
+    if category in ALLOWED_MEMORY_CATEGORIES:
+        return category
+
+    if "preference" in category:
+        return "preferences"
+
+    if "goal" in category:
+        return "goals"
+
+    if "project" in category:
+        return "projects"
+
+    if "people" in category or "person" in category:
+        return "people"
+
+    if "identity" in category or "name" in category:
+        return "identity"
+
+    return "other"
+
+def normalize_key(key):
+    key = key.lower().strip()
+
+    key = re.sub(r"[^a-z0-9_]+", "_", key)
+    key = re.sub(r"_+", "_", key)
+    key = key.strip("_")
+
+    words = key.split("_")
+
+    if len(words) > 5:
+        words = words[:5]
+
+    return "_".join(words)
+
 
 import json
 
@@ -54,13 +104,47 @@ Only remember information that could be useful later, such as:
 - people
 - other durable personal facts
 
+For remembered information, extract:
+
+For subject:
+- Use the real-world topic or domain being discussed.
+- Do not use generic words like "user", "person", or "self" unless the fact is literally about identity.
+- Prefer short nouns grounded in the message.
+
+- attribute: the type of fact or preference, using short snake_case
+- value: the actual user-specific value
+
+Examples:
+- "I prefer window seats on trains"
+  subject = "train"
+  attribute = "seat_preference"
+  value = "window"
+
+- "My favorite food is pizza"
+  subject = "food"
+  attribute = "favorite"
+  value = "pizza"
+
+- "My name is Carter"
+  subject = "user"
+  attribute = "name"
+  value = "Carter"
+
 Do not remember casual conversation, greetings, temporary statements, or questions.
 
 Return structured JSON matching the provided schema.
 """
 
     response = generate_structured_response(memory_prompt, MEMORY_SCHEMA)
-    return json.loads(response)
+    memory = json.loads(response)
+    memory["category"] = normalize_category(
+        memory["category"],
+        memory["attribute"]
+    )
+    memory["key"] = normalize_key(
+        f"{memory['subject']}_{memory['attribute']}"
+    )
+    return memory
     
 #add controlled extractor
 
