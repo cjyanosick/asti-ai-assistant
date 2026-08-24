@@ -4,7 +4,8 @@
   },
   "preferences": {
     "favorite_color": "orange",
-    "favorite_food": "pizza"
+    "favorite_food": "pizza",
+    "preference_for_aisle_seats_when_flying": "prefer aisle seats when flying"
   },
   "goals": {
     "current_goal": "save 10,000"
