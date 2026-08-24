@@ -213,3 +213,31 @@ Extracted memory:
 ASTI can now learn new types of personal information without requiring a new hardcoded rule for every topic.
 
 
+## Milestone: Semantic Memory Normalization
+
+### What changed
+- Expanded AI-based memory extraction to produce semantic fields:
+  - subject
+  - attribute
+  - value
+- Added Python-side category normalization.
+- Added deterministic memory key generation from subject and attribute.
+- Improved extraction prompts so the model identifies the real-world topic instead of generic subjects like "user".
+
+### Example
+User statement:
+"I prefer window seats on trains"
+
+Extracted memory:
+{
+  "category": "preferences",
+  "subject": "train",
+  "attribute": "seat_preference",
+  "value": "window",
+  "key": "train_seat_preference"
+}
+
+### Result
+ASTI can now convert natural-language personal information into cleaner, reusable structured memory without requiring topic-specific hardcoded rules.
+
+
