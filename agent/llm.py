@@ -1,30 +1,66 @@
 import re
-from model_provider import generate_response
+from model_provider import generate_response, generate_structured_response
 from memory import search_memory, add_memory, load_personal_memory, update_personal_memory
 
+import json
 import requests
 
+MEMORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "should_remember": {
+            "type": "boolean"
+        },
+        "category": {
+            "type": "string",
+            "enum": [
+                "identity",
+                "preferences",
+                "goals",
+                "projects",
+                "people",
+                "other"
+            ]
+        },
+        "key": {
+            "type": "string"
+        },
+        "value": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "should_remember",
+        "category",
+        "key",
+        "value"
+    ]
+}
+
+import json
+
 def extract_memory(prompt):
-    prompt_lower = prompt.lower().strip()
+    memory_prompt = f"""
+Analyze the user's message and decide whether it contains a useful personal fact worth remembering.
 
-    favorite_match = re.match(r"my favorite (.+?) is (.+)", prompt, re.IGNORECASE)
+User message:
+{prompt}
 
-    if favorite_match:
-        preference = favorite_match.group(1).strip().lower().replace(" ", "_")
-        value = favorite_match.group(2).strip()
-        return "preferences", f"favorite_{preference}", value
+Only remember information that could be useful later, such as:
+- identity
+- preferences
+- goals
+- projects
+- people
+- other durable personal facts
 
-    if prompt_lower.startswith("my name is "):
-        value = prompt[len("my name is "):].strip()
-        return "identity", "name", value
+Do not remember casual conversation, greetings, temporary statements, or questions.
 
-    goal_match = re.match(r"my goal is to (.+)", prompt, re.IGNORECASE)
+Return structured JSON matching the provided schema.
+"""
 
-    if goal_match:
-        goal = goal_match.group(1).strip()
-        return "goals", "current_goal", goal
-
-    return None
+    response = generate_structured_response(memory_prompt, MEMORY_SCHEMA)
+    return json.loads(response)
     
 #add controlled extractor
 
@@ -60,7 +96,7 @@ User message:
 
 
 #input ask
-if __name__ == "__main__": #prevent the chat from running on import
+if __name__ == "__main__":
     while True:
         user_input = input("\nYou: ")
 
@@ -74,8 +110,11 @@ if __name__ == "__main__": #prevent the chat from running on import
 
         memory_update = extract_memory(user_input)
 
-        if memory_update:
-            category, key, value = memory_update
-            update_personal_memory(category, key, value)
+        if memory_update["should_remember"]:
+            update_personal_memory(
+                memory_update["category"],
+                memory_update["key"],
+                memory_update["value"]
+            )
 
 
