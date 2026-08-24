@@ -96,13 +96,26 @@ Analyze the user's message and decide whether it contains a useful personal fact
 User message:
 {prompt}
 
-Only remember information that could be useful later, such as:
-- identity
-- preferences
-- goals
-- projects
-- people
-- other durable personal facts
+Remember information when it expresses a durable personal fact that may be useful in future conversations.
+
+Examples of information that SHOULD be remembered:
+- identity details
+- likes, dislikes, and preferences
+- goals and updated goals
+- ongoing projects
+- important people and relationships
+- recurring habits or routines
+- durable personal choices
+- long-term plans
+
+Examples of information that should NOT be remembered:
+- greetings
+- casual small talk
+- questions
+- temporary emotions
+- one-time statements with no future usefulness
+
+Statements such as "I prefer dark mode", "I am working on ASTI", and "my brother's name is Jake" should be remembered.
 
 For remembered information, extract:
 
@@ -141,9 +154,19 @@ Return structured JSON matching the provided schema.
         memory["category"],
         memory["attribute"]
     )
-    memory["key"] = normalize_key(
-        f"{memory['subject']}_{memory['attribute']}"
-    )
+    subject = memory["subject"].lower()
+    attribute = memory["attribute"].lower()
+
+    if attribute in subject:
+        raw_key = subject
+    else:
+        raw_key = f"{subject}_{attribute}"
+
+    memory["key"] = normalize_key(raw_key)
+
+    if memory["category"] == "goals":
+        memory["key"] = "current_goal"
+    
     return memory
     
 #add controlled extractor
@@ -180,17 +203,13 @@ User message:
 
 
 #input ask
+# input ask
 if __name__ == "__main__":
     while True:
         user_input = input("\nYou: ")
 
         if user_input.lower() in ["exit", "quit"]:
             break
-
-        response = ask_llm(user_input)
-        print("\nAI:", response)
-
-        add_memory(user_input, response)
 
         memory_update = extract_memory(user_input)
 
@@ -201,4 +220,8 @@ if __name__ == "__main__":
                 memory_update["value"]
             )
 
+        response = ask_llm(user_input)
+        print("\nAI:", response)
+
+        add_memory(user_input, response)
 
