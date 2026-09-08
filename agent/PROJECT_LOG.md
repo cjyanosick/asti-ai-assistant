@@ -338,3 +338,17 @@ phrasings ("make my savings goal 50k", "I want to save 50k") work.
 Restating or revising a stored fact updates it in place; a genuinely new fact
 gets its own entry; questions and small talk never mutate memory.
 
+## Milestone: Recent-Turn Conversation Context
+
+### What changed
+- Chat responses now receive the last 3 conversation turns in order, instead of
+  the top 5 keyword-matched turns from all of history.
+- Keyword search over full history (`search_memory`) pulled in the *evolution* of
+  a fact — e.g. every past savings figure — and the model would sometimes answer
+  with a stale value. Recent turns give conversational continuity without that.
+- `search_memory()` is retained for later semantic recall (embeddings, Phase 3).
+
+### Result
+Chat answers stay consistent with structured personal memory; old superseded
+values in the conversation log no longer leak into responses.
+
