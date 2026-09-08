@@ -240,4 +240,26 @@ Extracted memory:
 ### Result
 ASTI can now convert natural-language personal information into cleaner, reusable structured memory without requiring topic-specific hardcoded rules.
 
+## Milestone: Memory-First Response Flow
+
+### What changed
+- Moved personal memory extraction and updates before response generation.
+- ASTI now saves durable user updates before asking the model to respond.
+- Fixed cases where the assistant referenced an outdated value in the same message where the user corrected it.
+
+### Example
+User:
+"I actually want to save 25000"
+
+Previous behavior:
+- ASTI could answer using the old savings goal.
+- Memory updated only after the response.
+
+New behavior:
+- ASTI updates the stored goal first.
+- The response immediately reflects the new value.
+
+### Result
+ASTI's responses are now consistent with the latest structured personal memory on the same turn.
+
 
