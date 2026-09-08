@@ -263,3 +263,30 @@ New behavior:
 ASTI's responses are now consistent with the latest structured personal memory on the same turn.
 
 
+9/7/2026
+## Milestone: Centralized Storage Layer
+
+### What changed
+- Routed conversation-memory file access (`load_memory`, `save_memory`) through `storage.py`.
+- `memory.py` no longer calls `open()` / `json` directly — both conversation memory
+  and structured personal memory now go through the `load_json` / `save_json` boundary.
+- Removed now-unused `json` / `os` imports from `memory.py`.
+
+### Architecture improvement
+`storage.py` is now the single choke point for reading and writing ASTI's memory files.
+This is the boundary where an encryption layer will later be inserted without touching
+feature code.
+
+Current flow:
+
+ASTI Features → memory.py → storage.py → filesystem
+
+### Note
+`memory_backup.py` still uses direct file access but is an orphaned backup copy that
+nothing imports.
+
+### Result
+The storage abstraction is centralized. Encryption at rest can be added at the
+`storage.py` boundary later without changing memory logic.
+
+
