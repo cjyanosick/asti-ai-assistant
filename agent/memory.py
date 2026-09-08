@@ -1,3 +1,5 @@
+from storage import load_json, save_json
+
 import json
 import os
 
@@ -58,22 +60,19 @@ def search_memory(query):
 PERSONAL_MEMORY_FILE = "personal_memory.json"
 
 def load_personal_memory():
-    if not os.path.exists(PERSONAL_MEMORY_FILE):
-        return {
-            "identity": {},
-            "preferences": {},
-            "goals": {},
-            "projects": {},
-            "people": {},
-            "other": {}
-        }
+    default_memory = {
+        "identity": {},
+        "preferences": {},
+        "goals": {},
+        "projects": {},
+        "people": {},
+        "other": {}
+    }
 
-    with open(PERSONAL_MEMORY_FILE, "r") as f:
-        return json.load(f)
+    return load_json(PERSONAL_MEMORY_FILE, default_memory)
 
 def save_personal_memory(memory):
-    with open(PERSONAL_MEMORY_FILE, "w") as f:
-        json.dump(memory, f, indent=2)
+    save_json(PERSONAL_MEMORY_FILE, memory)
 
 def add_personal_memory(category, key, value):
     memory = load_personal_memory()
