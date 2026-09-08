@@ -290,3 +290,25 @@ The storage abstraction is centralized. Encryption at rest can be added at the
 `storage.py` boundary later without changing memory logic.
 
 
+9/8/2026
+
+### What changed
+- Added `router.py` — a dispatch layer that classifies each user message into
+  one intent before ASTI responds.
+- Model classifies against a fixed schema; Python validates against an allowlist
+  (`INTENTS`) and falls back to `chat` on bad output or an unknown label.
+- Current intents: `chat` (conversation) and `recall` (user asking ASTI to
+  retrieve a fact it already stored).
+- `ask_llm()` gained a `mode` argument. In `recall` mode it answers only from
+  structured personal memory, skips conversation-history retrieval, and admits
+  when a fact isn't stored instead of guessing.
+- Main loop now classifies, prints `[intent: …]`, and dispatches.
+
+### Architecture improvement
+New capabilities (tasks, planning, file tools) become new intents + handlers
+rather than more branches piled into the main loop.
+
+### Result
+ASTI decides what a message *wants* before answering, and fact-lookup questions
+now get a focused, memory-only response path.
+

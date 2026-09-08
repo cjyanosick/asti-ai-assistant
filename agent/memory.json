@@ -94,5 +94,9 @@
   {
     "user": "I actually wnat to save 25000",
     "ai": "Got it, Carter. It seems your goal has changed to saving 25,000 dollars. Based on my personal memory, your favorite color is orange and your favorite food is pizza.\n\nWould you like to discuss any strategies or tips for achieving your new goal of saving 25,000 dollars, or do you have any other questions or preferences that I can help with?"
+  },
+  {
+    "user": "whats my dogs name",
+    "ai": "Don't have that stored yet."
   }
 ]

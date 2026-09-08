@@ -1,6 +1,7 @@
 import re
 from model_provider import generate_response, generate_structured_response
 from memory import search_memory, add_memory, load_personal_memory, update_personal_memory
+from router import classify_intent
 
 import json
 import requests
@@ -172,10 +173,27 @@ Return structured JSON matching the provided schema.
 #add controlled extractor
 
 #memory draw injection:
-def ask_llm(prompt):
-    memory_items = search_memory(prompt)
+def ask_llm(prompt, mode="chat"):
     personal_memory = load_personal_memory() #read structured personal memory
     personal_memory_text = str(personal_memory) #translate into readable text for llama
+
+    if mode == "recall":
+        # Direct fact lookup: answer only from structured personal memory,
+        # skip conversation-history retrieval, and admit when the fact isn't stored.
+        recall_prompt = f"""You are a personal assistant answering a question about the user.
+Use ONLY the personal memory below. Do not guess.
+If the answer is not in personal memory, say you don't have that stored yet.
+Answer in one short sentence.
+
+Personal memory:
+{personal_memory_text}
+
+User question:
+{prompt}
+"""
+        return generate_response(recall_prompt)
+
+    memory_items = search_memory(prompt)
 
     memory_text = ""
 
@@ -220,7 +238,10 @@ if __name__ == "__main__":
                 memory_update["value"]
             )
 
-        response = ask_llm(user_input)
+        intent = classify_intent(user_input)
+        print(f"[intent: {intent}]")
+
+        response = ask_llm(user_input, mode=intent)
         print("\nAI:", response)
 
         add_memory(user_input, response)
