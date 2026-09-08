@@ -1,19 +1,12 @@
 from storage import load_json, save_json
 
-import json
-import os
-
 MEMORY_FILE = "memory.json"
 
 def load_memory():
-    if not os.path.exists(MEMORY_FILE):
-        return []
-    with open(MEMORY_FILE, "r") as f:
-        return json.load(f)
+    return load_json(MEMORY_FILE, [])
 
 def save_memory(memory):
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(memory, f, indent=2)
+    save_json(MEMORY_FILE, memory)
 
 #memory overwrite behavior
 def add_memory(user, ai):
