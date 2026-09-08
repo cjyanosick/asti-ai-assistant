@@ -1,6 +1,6 @@
 import re
 from model_provider import generate_response, generate_structured_response
-from memory import search_memory, add_memory, load_personal_memory, update_personal_memory
+from memory import add_memory, load_memory, load_personal_memory, update_personal_memory
 from router import classify_intent
 
 import json
@@ -276,11 +276,14 @@ User question:
 """
         return generate_response(recall_prompt)
 
-    memory_items = search_memory(prompt)
+    # Recent turns only, in order — conversational continuity without dredging
+    # stale facts out of deep history via keyword match. Semantic recall over old
+    # history is a later (embeddings) concern; durable facts live in personal memory.
+    recent_turns = load_memory()[-3:]
 
     memory_text = ""
 
-    for item in memory_items:
+    for item in recent_turns:
         memory_text += f"User: {item['user']}\nAI: {item['ai']}\n\n"
 
     full_prompt = f"""
