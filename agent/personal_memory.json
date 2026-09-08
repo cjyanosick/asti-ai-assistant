@@ -8,7 +8,9 @@
     "preference_for_aisle_seats_when_flying": "prefer aisle seats when flying"
   },
   "goals": {
-    "current_goal": "25000"
+    "savings_target": "50000",
+    "running_goal": "run 5k",
+    "language_learning_goal": "spanish"
   },
   "projects": {},
   "people": {},

@@ -312,3 +312,29 @@ rather than more branches piled into the main loop.
 ASTI decides what a message *wants* before answering, and fact-lookup questions
 now get a focused, memory-only response path.
 
+## Milestone: Reliable Personal-Memory Updates
+
+### What changed
+- Removed the `goals` special case that forced every goal into one key
+  (`current_goal`); goals now use semantic keys like every other category.
+- Added `reconcile_key()`: before writing, ASTI shows the model the keys it
+  already stores in that category and asks whether the new statement updates one
+  of them. Updates land on the existing key instead of creating a near-duplicate
+  (`savings_target` vs `saving_amount`). Python validates the choice against the
+  real key list; unknown/garbage answers fall back to a fresh key.
+- Added `is_noninformative()`: a deterministic Python guard that drops questions
+  and greetings before extraction, so asking "what is my savings goal?" can never
+  overwrite the goal with a garbage value. Also skips a model call.
+- Switched the default model from `qwen2.5:3b` to `llama3:latest`. The 3B model
+  could not reliably classify goal updates or produce clean subject/attribute
+  fields; llama3 handles both.
+
+### Known limitation
+Bare pronoun follow-ups with no noun ("instead make it 50k") lack the context to
+resolve what "it" refers to and can land in the wrong category. Explicit
+phrasings ("make my savings goal 50k", "I want to save 50k") work.
+
+### Result
+Restating or revising a stored fact updates it in place; a genuinely new fact
+gets its own entry; questions and small talk never mutate memory.
+

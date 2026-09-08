@@ -90,7 +90,90 @@ def normalize_key(key):
 
 import json
 
+
+_QUESTION_RE = re.compile(
+    r"^\s*(what|whats|what's|why|how|hows|how's|when|where|who|whos|who's|which|whose|"
+    r"do|does|did|are|is|was|were|can|could|would|should|will|tell me|remind me)\b",
+    re.IGNORECASE,
+)
+_SMALL_TALK = {
+    "hi", "hey", "hello", "yo", "sup", "thanks", "thank you", "ty", "ok", "okay",
+    "k", "cool", "nice", "great", "awesome", "lol", "haha", "yeah", "yep", "nope",
+    "sure", "np",
+}
+
+
+def is_noninformative(message):
+    # Questions and greetings never carry a durable fact. Catching them here keeps
+    # the model from "remembering" a question and overwriting real memory with a
+    # garbage value — structure enforced in Python, not asked of the model.
+    m = message.strip().lower()
+
+    if not m:
+        return True
+
+    if m.endswith("?") or _QUESTION_RE.match(m):
+        return True
+
+    stripped = m.rstrip("!.").strip()
+
+    if stripped in _SMALL_TALK:
+        return True
+
+    return stripped.startswith(
+        ("how's it going", "hows it going", "what's up", "whats up", "how are you")
+    )
+
+
+def reconcile_key(prompt, category, candidate_key):
+    # Small models don't produce a stable subject/attribute for the same fact
+    # ("savings target" vs "saving amount"), so a plain key never overwrites
+    # reliably. Show the model what ASTI already stores in this category and let
+    # it decide "same fact or new one"; Python constrains the answer to a known
+    # key or the sentinel "__new__", and falls back to candidate_key on anything odd.
+    existing = load_personal_memory().get(category, {})
+
+    if not existing:
+        return candidate_key
+
+    options = sorted(existing.keys()) + ["__new__"]
+
+    schema = {
+        "type": "object",
+        "properties": {"key": {"type": "string", "enum": options}},
+        "required": ["key"],
+    }
+
+    existing_lines = "\n".join(f"- {k}: {existing[k]}" for k in sorted(existing.keys()))
+
+    reconcile_prompt = f"""Existing {category} entries (key: value):
+{existing_lines}
+
+New user statement: "{prompt}"
+
+If this statement sets a new value for one of the entries above, return that key.
+If it is about something different, return "__new__".
+
+Examples:
+- "bump my savings to 60k", with key savings_target present -> savings_target
+- "I want to run a marathon", with no running entry present -> __new__
+
+Return JSON matching the schema."""
+
+    raw = generate_structured_response(reconcile_prompt, schema)
+
+    try:
+        choice = json.loads(raw).get("key")
+    except (json.JSONDecodeError, TypeError):
+        return candidate_key
+
+    return choice if choice in existing else candidate_key
+
+
 def extract_memory(prompt):
+    if is_noninformative(prompt):
+        return {"should_remember": False}
+
     memory_prompt = f"""
 Analyze the user's message and decide whether it contains a useful personal fact worth remembering.
 
@@ -165,9 +248,9 @@ Return structured JSON matching the provided schema.
 
     memory["key"] = normalize_key(raw_key)
 
-    if memory["category"] == "goals":
-        memory["key"] = "current_goal"
-    
+    if memory.get("should_remember"):
+        memory["key"] = reconcile_key(prompt, memory["category"], memory["key"])
+
     return memory
     
 #add controlled extractor

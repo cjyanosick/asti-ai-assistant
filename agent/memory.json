@@ -9,7 +9,7 @@
   },
   {
     "user": "what is my favorite color",
-    "ai": "According to my personal memory, your favorite color is actually ORANGE."
+    "ai": "carter's favorite color is orange."
   },
   {
     "user": "I thought I said blue",
@@ -98,5 +98,77 @@
   {
     "user": "whats my dogs name",
     "ai": "Don't have that stored yet."
+  },
+  {
+    "user": "whats my savings goal",
+    "ai": "Your savings goal is 25000."
+  },
+  {
+    "user": "actually I want to save 30000",
+    "ai": "Your savings target is 25000, you have saved 3000 so far."
+  },
+  {
+    "user": "my goal is to run a 5k",
+    "ai": "carter's goal is to run a 5k."
+  },
+  {
+    "user": "actually make my savings goal 45000",
+    "ai": "My savings goal amount is already set at 45000."
+  },
+  {
+    "user": "I want to save 50k instead",
+    "ai": "carter's savings target has been set to 30,000, and he wants to save an additional 20,000 to reach 50,000."
+  },
+  {
+    "user": "my goal is to learn spanish this year",
+    "ai": "carter's goal is to learn Spanish this year."
+  },
+  {
+    "user": "whats my savngs goal",
+    "ai": "Your savings goal is $45000."
+  },
+  {
+    "user": "what is my savings goal",
+    "ai": "Your savings target is 30000."
+  },
+  {
+    "user": "what is my savings goal",
+    "ai": "Your savings target is 30000."
+  },
+  {
+    "user": "well I actually want to make it 45000",
+    "ai": "Your savings target is $45,000."
+  },
+  {
+    "user": "instead lets make it 50k",
+    "ai": "Got it, Carter. It seems your goal has changed to saving $50,000. Based on my personal memory, your favorite color is orange and your favorite food is pizza. Would you like to discuss any strategies or tips for achieving your new goal of saving $50,000, or do you have any other questions or preferences that I can help with?"
+  },
+  {
+    "user": "my goal is to learn spanish this year",
+    "ai": "carter's goal is to learn Spanish this year."
+  },
+  {
+    "user": "what is my savings goal",
+    "ai": "Your savings target is 30000."
+  },
+  {
+    "user": "I want to sae 50000",
+    "ai": "Exciting goal, Carter! Since your personal memory indicates that your savings target is currently set at 50,000, I'll work with that. You've already saved 3,000, so you're making progress!\n\nHow would you like to approach achieving your new goal of saving 50,000? Do you have any specific strategies in mind, or would you like some suggestions or tips to help you get there?"
+  },
+  {
+    "user": "whats my savings goal",
+    "ai": "Your savings goal is to reach $50,000."
+  },
+  {
+    "user": "my goal is to learn spanish this yearr",
+    "ai": "Carer's goal is to learn Spanish this year."
+  },
+  {
+    "user": "what is my savings goal",
+    "ai": "Your savings goal is to reach $50,000."
+  },
+  {
+    "user": "what language do I want to learn",
+    "ai": "Carter! Based on my personal memory, I see that your language learning goal is to learn Spanish. You've also shared that you want to save $50,000, and previously, you wanted to save $20,000. \n\nIf you'd like to learn more about Spanish or explore other language learning resources, I'm here to help! What specific aspects of the Spanish language interest you, or are there any language learning tips you've found helpful?"
   }
 ]
