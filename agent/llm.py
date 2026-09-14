@@ -2,6 +2,7 @@ import re
 from model_provider import generate_response, generate_structured_response, generate_cloud_response
 from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory
 from router import classify_intent
+from tasks import add_task, load_tasks, complete_task
 
 import json
 import requests
@@ -43,6 +44,11 @@ ALLOWED_MEMORY_CATEGORIES = {
     "other"
 }
 
+_PEOPLE_WORDS = (
+    "people", "person", "relationship", "friend", "family",
+    "colleague", "coworker", "co-worker",
+)
+
 def normalize_category(category, attribute=""):
     category = category.lower().strip()
     attribute = attribute.lower().strip()
@@ -65,7 +71,7 @@ def normalize_category(category, attribute=""):
     if "project" in category:
         return "projects"
 
-    if "people" in category or "person" in category:
+    if any(word in category for word in _PEOPLE_WORDS):
         return "people"
 
     if "identity" in category or "name" in category:
@@ -255,8 +261,45 @@ Return structured JSON matching the provided schema.
     
 #add controlled extractor
 
+TASK_SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}},
+    "required": ["text"],
+}
+
+
+def extract_task(prompt):
+    # Router already decided this message wants a task recorded; this call only
+    # cleans the wording into a short imperative phrase for the tasks list.
+    task_prompt = f"""Extract the to-do item from the user's message as a short,
+imperative action phrase. Drop lead-ins like "remind me to" or "add ... to my list".
+
+User message:
+{prompt}
+
+Examples:
+- "remind me to call the dentist" -> "call the dentist"
+- "add buy milk to my list" -> "buy milk"
+- "I need to finish the report by Friday" -> "finish the report by Friday"
+
+Return JSON matching the schema."""
+
+    raw = generate_structured_response(task_prompt, TASK_SCHEMA)
+
+    try:
+        text = json.loads(raw).get("text", "").strip()
+    except (json.JSONDecodeError, TypeError):
+        text = ""
+
+    return text if text else prompt.strip()
+
+
 #memory draw injection:
 def ask_llm(prompt, mode="chat"):
+    if mode == "task":
+        task = add_task(extract_task(prompt))
+        return f"Added to your list: {task['text']}"
+
     if mode == "general_knowledge":
         # No personal angle to this question. personal_memory.json is never
         # loaded on this path at all — not loaded-then-discarded, genuinely
@@ -359,17 +402,43 @@ if __name__ == "__main__":
                 print(f"\nNo entry found at {category}.{key}")
             continue
 
-        memory_update = extract_memory(user_input)
+        if user_input.strip() == "/tasks":
+            tasks = load_tasks()
+            print("\n--- Tasks ---")
+            if not tasks:
+                print("(no tasks)")
+            for task in tasks:
+                mark = "x" if task["done"] else " "
+                print(f"[{mark}] {task['id']}. {task['text']}")
+            print()
+            continue
 
-        if memory_update["should_remember"]:
-            update_personal_memory(
-                memory_update["category"],
-                memory_update["key"],
-                memory_update["value"]
-            )
+        if user_input.strip().startswith("/done"):
+            parts = user_input.split(maxsplit=1)
+            if len(parts) != 2 or not parts[1].strip().isdigit():
+                print("\nUsage: /done <task id>")
+                continue
+            task_id = int(parts[1].strip())
+            if complete_task(task_id):
+                print(f"\nMarked task {task_id} done")
+            else:
+                print(f"\nNo task with id {task_id}")
+            continue
 
         intent = classify_intent(user_input)
         print(f"[intent: {intent}]")
+
+        # A to-do isn't a personal fact — skip extraction so a task never also
+        # lands as a near-duplicate entry in personal_memory.json.
+        if intent != "task":
+            memory_update = extract_memory(user_input)
+
+            if memory_update["should_remember"]:
+                update_personal_memory(
+                    memory_update["category"],
+                    memory_update["key"],
+                    memory_update["value"]
+                )
 
         response = ask_llm(user_input, mode=intent)
         print("\nAI:", response)

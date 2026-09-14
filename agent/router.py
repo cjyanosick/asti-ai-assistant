@@ -9,6 +9,7 @@ INTENTS = {
     "chat",              # greetings, opinions, open-ended talk *about the user's own life/context*
     "recall",            # user is asking ASTI to retrieve a fact it already stored about them
     "general_knowledge", # a question with no personal angle — answered without personal memory
+    "task",              # user wants to record a to-do / reminder for themselves
 }
 
 INTENT_SCHEMA = {
@@ -43,6 +44,15 @@ Intents:
   answered the same way no matter who asked it. Examples: "what's the
   capital of France", "explain how TCP handshakes work", "what's a good
   rate limiting algorithm", "who won the world series in 1998".
+- task: the user wants to record a brand-new, concrete action item to
+  complete once and check off — something to physically do, like call, buy,
+  finish, or submit something. Examples: "remind me to call the dentist",
+  "add buy milk to my list", "I need to finish the report by Friday".
+  Updating or setting an existing stored value ("make my savings goal
+  45000", "set my goal to 5k", "I want to save 50000") is chat, not task,
+  even when it uses a verb like "make" or "set" — there's no real-world
+  action to complete, just a number to update. A question about anything
+  already stored is recall, not task.
 
 User message:
 {message}
