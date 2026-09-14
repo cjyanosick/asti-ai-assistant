@@ -1,0 +1,14 @@
+# secrets
+.env
+*.env
+
+# personal memory — never publish real personal data
+agent/memory.json
+agent/personal_memory.json
+agent/memory.txt
+agent/memory_backup.py
+
+# OS / editor cruft
+.DS_Store
+__pycache__/
+*.pyc
