@@ -2,6 +2,9 @@
 .env
 *.env
 
+# dev notes — private, not for the public repo
+CLAUDE.md
+
 # personal memory — never publish real personal data
 agent/memory.json
 agent/personal_memory.json
