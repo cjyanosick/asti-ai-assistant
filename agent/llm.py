@@ -1,5 +1,5 @@
 import re
-from model_provider import generate_response, generate_structured_response
+from model_provider import generate_response, generate_structured_response, generate_cloud_response
 from memory import add_memory, load_memory, load_personal_memory, update_personal_memory
 from router import classify_intent
 
@@ -257,6 +257,19 @@ Return structured JSON matching the provided schema.
 
 #memory draw injection:
 def ask_llm(prompt, mode="chat"):
+    if mode == "general_knowledge":
+        # No personal angle to this question. personal_memory.json is never
+        # loaded on this path at all — not loaded-then-discarded, genuinely
+        # never read — so it cannot end up in a request sent to the cloud
+        # provider. This is the hard privacy boundary.
+        general_prompt = f"""You are a helpful, knowledgeable assistant.
+Answer the user's question directly and accurately.
+
+User question:
+{prompt}
+"""
+        return generate_cloud_response(general_prompt)
+
     personal_memory = load_personal_memory() #read structured personal memory
     personal_memory_text = str(personal_memory) #translate into readable text for llama
 

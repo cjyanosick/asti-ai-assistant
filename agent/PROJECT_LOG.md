@@ -352,3 +352,34 @@ gets its own entry; questions and small talk never mutate memory.
 Chat answers stay consistent with structured personal memory; old superseded
 values in the conversation log no longer leak into responses.
 
+
+9/14/2026
+
+## Milestone: Hybrid Local/Cloud Routing (general_knowledge intent)
+
+### What changed
+- Added a third intent, `general_knowledge`, alongside `chat` and `recall`.
+- Added `generate_cloud_response()` in `model_provider.py`, calling the
+  Claude API for questions with no personal angle.
+- `config.py` now loads a `.env` file (via `python-dotenv`) for the API key
+  instead of any key ever being hardcoded in source.
+- `.gitignore` added — blocks `.env`, and stops tracking `memory.json` /
+  `personal_memory.json`, which had been committed in plain text since the
+  project started.
+
+### Architecture / privacy decision
+`ask_llm()` returns early for `general_knowledge` before `load_personal_memory()`
+is ever called — personal memory is not loaded, not just excluded from the
+prompt, when a question doesn't need it. That is the boundary: personal data
+never reaches the cloud provider, regardless of what future cloud calls get
+added later.
+
+### Why
+Local models (llama3:latest) meaningfully underperform on general-knowledge
+questions with no relation to the user. Splitting "needs my context" from
+"doesn't" gets frontier-model quality on the second category without
+weakening the privacy guarantee on the first.
+
+### Result
+General questions now route to Claude; personal chat and recall are
+unchanged and still fully local.
