@@ -79,3 +79,13 @@ def add_personal_memory(category, key, value):
 
 def update_personal_memory(category, key, value): #keep memory managemnet seperate from the main conversation logic
     add_personal_memory(category, key, value)
+
+def forget_personal_memory(category, key):
+    memory = load_personal_memory()
+
+    if category not in memory or key not in memory[category]:
+        return False
+
+    del memory[category][key]
+    save_personal_memory(memory)
+    return True
