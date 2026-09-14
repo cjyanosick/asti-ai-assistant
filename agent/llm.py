@@ -1,6 +1,6 @@
 import re
 from model_provider import generate_response, generate_structured_response, generate_cloud_response
-from memory import add_memory, load_memory, load_personal_memory, update_personal_memory
+from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory
 from router import classify_intent
 
 import json
@@ -332,6 +332,32 @@ if __name__ == "__main__":
 
         if user_input.lower() in ["exit", "quit"]:
             break
+
+        # Deterministic vault commands — no model involved, so they bypass
+        # extraction/routing entirely rather than becoming another intent.
+        if user_input.strip() == "/memory":
+            memory = load_personal_memory()
+            print("\n--- Personal Memory ---")
+            for category, entries in memory.items():
+                if not entries:
+                    continue
+                print(f"\n{category}:")
+                for key, value in entries.items():
+                    print(f"  {key}: {value}")
+            print()
+            continue
+
+        if user_input.strip().startswith("/forget"):
+            parts = user_input.split(maxsplit=2)
+            if len(parts) != 3:
+                print("\nUsage: /forget <category> <key>")
+                continue
+            _, category, key = parts
+            if forget_personal_memory(category, key):
+                print(f"\nForgot {category}.{key}")
+            else:
+                print(f"\nNo entry found at {category}.{key}")
+            continue
 
         memory_update = extract_memory(user_input)
 
