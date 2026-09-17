@@ -207,6 +207,10 @@ Examples of information that should NOT be remembered:
 
 Statements such as "I prefer dark mode", "I am working on ASTI", and "my brother's name is Jake" should be remembered.
 
+The category field must be one of: identity, preferences, goals, projects, people, other.
+Use "projects" for ongoing work/projects, and "people" for facts about specific people
+and relationships.
+
 For remembered information, extract:
 
 For subject:
@@ -232,6 +236,18 @@ Examples:
   subject = "user"
   attribute = "name"
   value = "Carter"
+
+- "I am working on ASTI, a personal AI assistant"
+  category = "projects"
+  subject = "ASTI"
+  attribute = "description"
+  value = "personal AI assistant"
+
+- "My brother's name is Jake"
+  category = "people"
+  subject = "brother"
+  attribute = "name"
+  value = "Jake"
 
 Do not remember casual conversation, greetings, temporary statements, or questions.
 
