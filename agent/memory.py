@@ -1,3 +1,5 @@
+import datetime
+
 from storage import load_json, save_json
 
 MEMORY_FILE = "memory.json"
@@ -89,3 +91,11 @@ def forget_personal_memory(category, key):
     del memory[category][key]
     save_personal_memory(memory)
     return True
+
+def export_personal_memory():
+    memory = load_personal_memory()
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"memory_export_{timestamp}.json"
+
+    save_json(filename, memory)
+    return filename

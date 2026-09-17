@@ -1,6 +1,6 @@
 import re
 from model_provider import generate_response, generate_structured_response, generate_cloud_response
-from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory
+from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory
 from router import classify_intent
 from tasks import add_task, load_tasks, complete_task
 
@@ -400,6 +400,25 @@ if __name__ == "__main__":
                 print(f"\nForgot {category}.{key}")
             else:
                 print(f"\nNo entry found at {category}.{key}")
+            continue
+
+        if user_input.strip().startswith("/edit"):
+            parts = user_input.split(maxsplit=3)
+            if len(parts) != 4:
+                print("\nUsage: /edit <category> <key> <value>")
+                continue
+            _, category, key, value = parts
+            if category not in ALLOWED_MEMORY_CATEGORIES:
+                valid = ", ".join(sorted(ALLOWED_MEMORY_CATEGORIES))
+                print(f"\nUnknown category '{category}'. Valid categories: {valid}")
+                continue
+            update_personal_memory(category, key, value)
+            print(f"\nSet {category}.{key} = {value}")
+            continue
+
+        if user_input.strip() == "/export":
+            filename = export_personal_memory()
+            print(f"\nExported personal memory to {filename}")
             continue
 
         if user_input.strip() == "/tasks":
