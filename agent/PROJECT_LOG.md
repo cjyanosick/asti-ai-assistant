@@ -426,3 +426,27 @@ view/complete via commands. Projects/notes/documents are separate future slices.
 ### Result
 Roadmap item #1 done: `/memory` (inspect), `/edit`, `/forget` (delete), and
 `/export` now cover the full Memory Vault UI as originally scoped.
+
+9/17/2026
+
+## Fix: projects/people categories now classify correctly (roadmap #2)
+
+### What changed
+- `extract_memory()`'s prompt in `llm.py` never told the model the actual
+  `category` vocabulary (identity/preferences/goals/projects/people/other) —
+  it only listed reasons to remember things, and worked examples covered
+  preference/goal/identity-shaped facts only. `normalize_category()` had
+  keyword fallbacks for preference/goal/identity but nothing reliably routing
+  project/people facts, so both categories sat empty.
+- Added an explicit category list plus one worked example each for
+  "projects" and "people" to the prompt.
+
+### Verification
+Called `extract_memory()` directly (no writes) against test statements:
+- "I'm working on a new woodworking project in the garage" -> category: projects
+- "My sister Emma just moved to Denver" -> category: people
+Regression-checked preferences/goals/identity still classify correctly.
+
+### Result
+Roadmap item #2 done: all six memory categories now populate correctly from
+natural conversation, not just the original three.
