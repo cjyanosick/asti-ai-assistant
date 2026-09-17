@@ -383,3 +383,46 @@ weakening the privacy guarantee on the first.
 ### Result
 General questions now route to Claude; personal chat and recall are
 unchanged and still fully local.
+
+
+
+9/13/2026
+
+### What changed
+- New `tasks.py`: `add_task`/`load_tasks`/`complete_task`, through `storage.py`.
+- `router.py` gained a 4th intent, `task` — a brand-new concrete action item,
+  distinct from an ongoing goal/target (which stays `chat`) or a question about a
+  stored fact (`recall`). Took several prompt iterations to avoid boundary collisions.
+- `llm.py`: `extract_task()` cleans wording into a short imperative phrase;
+  `ask_llm(mode="task")` adds it and confirms. `/tasks` (view) and `/done <id>`
+  (complete) are deterministic commands, same pattern as `/memory`/`/forget`.
+- Reordered the main loop to classify intent before extraction, skipping
+  `extract_memory` for `task` messages — otherwise a task would also write a
+  near-duplicate entry into personal memory.
+- `tasks.json` added to `.gitignore` (personal data).
+
+### Known limitations
+- "set my goal to X" can misfile as `task` when X reads as an action verb.
+- Pre-existing: statements like "my favorite color is teal" can misfile as `recall`.
+
+### Result
+Roadmap item #3 (tasks) has its first working slice: add via natural language,
+view/complete via commands. Projects/notes/documents are separate future slices.
+
+9/17/2026
+
+## Milestone: Memory Vault UI complete (roadmap #1)
+
+### What changed
+- `/edit <category> <key> <value>`: deterministic command, validates category
+  against `ALLOWED_MEMORY_CATEGORIES`, writes via `update_personal_memory()`.
+- `/export`: new `export_personal_memory()` in `memory.py` writes a timestamped
+  JSON snapshot (`memory_export_<timestamp>.json`) via `storage.py`'s
+  `save_json` — no direct file I/O, same as the rest of the vault.
+- `.gitignore` updated to block `agent/memory_export_*.json` — an export is a
+  second plaintext copy of personal data and needed the same protection as
+  `personal_memory.json` itself.
+
+### Result
+Roadmap item #1 done: `/memory` (inspect), `/edit`, `/forget` (delete), and
+`/export` now cover the full Memory Vault UI as originally scoped.
