@@ -450,3 +450,21 @@ Regression-checked preferences/goals/identity still classify correctly.
 ### Result
 Roadmap item #2 done: all six memory categories now populate correctly from
 natural conversation, not just the original three.
+
+9/28/2026
+
+## Fix: pinned dependencies, added project venv
+
+### What changed
+- Homebrew upgraded Python to 3.14.7 on 9/23, replacing the global
+  site-packages ASTI's dependencies (`python-dotenv`, `requests`) lived in.
+  `python3 llm.py` was broken as a result, and Homebrew's Python now refuses
+  global `pip install` outright (PEP 668).
+- Added `venv/` (gitignored) and `requirements.txt` (`python-dotenv`,
+  `requests`, `cryptography` — the last one is prep for roadmap #4).
+- Run command going forward: `python3 -m venv venv && venv/bin/pip install
+  -r requirements.txt`, then `venv/bin/python3 llm.py`.
+
+### Result
+ASTI runs again, and dependencies are now isolated from system Python so a
+future OS/Homebrew upgrade can't silently break the agent the same way.
