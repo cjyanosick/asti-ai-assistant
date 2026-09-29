@@ -468,3 +468,36 @@ natural conversation, not just the original three.
 ### Result
 ASTI runs again, and dependencies are now isolated from system Python so a
 future OS/Homebrew upgrade can't silently break the agent the same way.
+
+## Milestone: Encryption at rest (roadmap #4)
+
+### What changed
+- `storage.py`'s `load_json`/`save_json` now transparently encrypt with
+  Fernet (from the `cryptography` package), keyed by a new `ENCRYPTION_KEY`
+  in `agent/.env` — same pattern as `ANTHROPIC_API_KEY`. No caller changes:
+  `memory.py` and `tasks.py` are untouched.
+- No key configured -> falls back to plaintext with a one-time printed
+  warning, doesn't break. A malformed key fails loudly at import instead —
+  that's a real misconfiguration, not "feature not enabled yet."
+- Legacy plaintext files stay readable after encryption turns on (a decrypt
+  failure falls back to reading the raw bytes as plaintext JSON) and
+  self-migrate to encrypted on their next save — no separate migration
+  script needed.
+- Migrated the real `personal_memory.json`, `memory.json`, and `tasks.json`
+  to encrypted today rather than waiting for opportunistic re-save.
+
+### Verification
+Backed up all three real data files, re-saved them through the new key,
+confirmed none are valid plaintext JSON anymore, then reloaded and diffed
+against the backups — byte-for-byte identical content. Confirmed a
+malformed `ENCRYPTION_KEY` raises immediately on import. Ran a full
+`ask_llm(mode="recall")` call end-to-end through the encrypted files —
+correct answer, no behavior change visible to the user.
+
+### Result
+Roadmap item #4 done: `personal_memory.json`, `memory.json`, and
+`tasks.json` are no longer plaintext on disk. Note: this is disk encryption
+only — it does not touch the separate git-history plaintext exposure
+(`agent/CLAUDE.md`, "Known housekeeping issue"), which is still open.
+Roadmap #5 (OS-level key management) is the natural next step for this —
+`ENCRYPTION_KEY` currently lives in a `.env` file, not a real key store.
