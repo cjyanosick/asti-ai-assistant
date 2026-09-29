@@ -17,3 +17,6 @@ agent/memory_export_*.json
 .DS_Store
 __pycache__/
 *.pyc
+
+# virtual environment — recreate with: python3 -m venv venv && venv/bin/pip install -r requirements.txt
+venv/
