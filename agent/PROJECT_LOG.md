@@ -573,3 +573,29 @@ intents unaffected.
 ### Result
 Second slice of roadmap #6 done. Remaining: outbound-call
 enforcement/auditing, context minimization, privacy-safe diagnostics.
+
+## Milestone: Outbound-call auditing (roadmap #6, third slice)
+
+### What changed
+- New `outbound_log.py`: `log_outbound_call()` appends an entry every time
+  ASTI actually reaches a cloud provider — timestamp, provider, model,
+  which intent triggered it, status (`ok`/`error`/`no_key`). Metadata only,
+  never the prompt or answer. Goes through `storage.py`, so it's encrypted
+  at rest automatically, same as everything else.
+- Logging lives inside `generate_cloud_response()` in `model_provider.py` —
+  the only place that actually knows whether the call succeeded.
+  `ask_llm()`'s `general_knowledge` branch passes `intent="general_knowledge"`
+  as an audit label.
+- New `/outbound` command (same pattern as `/memory`/`/tasks`) lists the
+  last 20 entries — an audit log nobody can see isn't much of an audit log.
+
+### Verification
+A real cloud call logs `status=ok` with no content captured. The
+`ASTI_ALLOW_CLOUD=false` local-fallback path never reaches
+`generate_cloud_response`, so it correctly never logs anything. A missing
+API key logs `status=no_key`. Confirmed the log file is encrypted on disk,
+same as `personal_memory.json`/`memory.json`/`tasks.json`.
+
+### Result
+Third slice of roadmap #6 done. Remaining: context minimization beyond
+"don't load personal memory," privacy-safe diagnostics.
