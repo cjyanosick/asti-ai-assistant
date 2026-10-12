@@ -3,6 +3,7 @@ from model_provider import generate_response, generate_structured_response, gene
 from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory
 from router import classify_intent
 from tasks import add_task, load_tasks, complete_task
+from outbound_log import load_outbound_log
 from config import ALLOW_CLOUD
 
 import json
@@ -341,7 +342,7 @@ User question:
 {prompt}
 """
         if ALLOW_CLOUD:
-            return generate_cloud_response(general_prompt)
+            return generate_cloud_response(general_prompt, intent="general_knowledge")
 
         # User-chosen opt-out, not a silent fallback: ASTI_ALLOW_CLOUD=false
         # means every intent answers locally, even the ones that would
@@ -478,6 +479,20 @@ if __name__ == "__main__":
                 print(f"\nMarked task {task_id} done")
             else:
                 print(f"\nNo task with id {task_id}")
+            continue
+
+        if user_input.strip() == "/outbound":
+            entries = load_outbound_log()
+            print("\n--- Outbound Calls ---")
+            if not entries:
+                print("(no outbound calls yet)")
+            for entry in entries[-20:]:
+                detail = f" ({entry['detail']})" if "detail" in entry else ""
+                print(
+                    f"{entry['timestamp']}  {entry['intent']:18} "
+                    f"{entry['provider']}/{entry['model']}  {entry['status']}{detail}"
+                )
+            print()
             continue
 
         intent = classify_intent(user_input)
