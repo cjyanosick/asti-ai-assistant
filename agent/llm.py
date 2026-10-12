@@ -497,8 +497,17 @@ User question:
         return generate_response(recall_prompt)
 
     # Recent turns only, in order — conversational continuity without dredging
-    # stale facts out of deep history via keyword match. Semantic recall over old
-    # history is a later (embeddings) concern; durable facts live in personal memory.
+    # stale facts out of deep history via keyword match. Semantic recall was
+    # tried here too (roadmap #7, second slice) and reverted: injecting
+    # semantically-matched older turns reintroduced the exact stale-value bug
+    # this comment used to warn about — llama3 answered a savings-goal
+    # question from a seeded old turn ($10,000) instead of personal memory
+    # ($50,000), even with explicit "this section may be outdated" language
+    # added to the prompt. One round of stronger instructions didn't fix it
+    # reliably across phrasings, so semantic recall stays an explicit,
+    # user-invoked tool (/recall) rather than silent context injection.
+    # Durable facts live in personal memory — still the only thing recall
+    # mode trusts (see the "authoritative" instruction below).
     recent_turns = load_memory()[-3:]
 
     memory_text = ""
