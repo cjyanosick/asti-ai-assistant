@@ -659,3 +659,40 @@ outbound-call auditing, context minimization, privacy-safe diagnostics)
 are complete. Roadmap #7 (semantic recall over conversation history) is
 the one remaining engineering item before #8 (the product/commercialization
 path).
+
+## Milestone: Semantic recall over conversation history (roadmap #7, first slice)
+
+### What changed
+- New `generate_embedding()` in `model_provider.py`, always local via
+  Ollama's `nomic-embed-text` (pulled this session) — never routed through
+  the cloud path, since conversation history can contain anything the
+  user has said. New `EMBEDDING_MODEL` config (env `ASTI_EMBEDDING_MODEL`).
+- `add_memory()` now accepts an optional `embedding` to store alongside a
+  turn. The main loop computes one for every new turn going forward,
+  best-effort — if the embedding call fails, the turn still saves without
+  one rather than losing conversation history over it.
+- New `semantic_search()` in `memory.py`: brute-force cosine similarity
+  over embedded turns. Fine at personal-use scale; a real vector index is
+  a later concern if this ever needs to scale, not a day-one requirement.
+  Turns saved before this feature existed have no `embedding` key and are
+  silently skipped — not backfilled.
+- Deliberately NOT wired into the live `chat`/`recall` prompts yet.
+  Surfaced instead through a new `/recall <query>` command so retrieval
+  quality could be inspected directly first, after how many rounds of
+  prompt-engineering whack-a-mole happened earlier in this project's
+  history. Wiring this into live responses is a separate future slice.
+- `/status` now also reports how many conversation turns are
+  semantically searchable out of the total.
+
+### Verification
+A reworded query ("what are my plans for learning a new language") with
+zero words in common with a stored turn about learning Spanish to travel
+to Mexico correctly ranked that turn highest (0.604 cosine similarity)
+over unrelated stored turns about savings (0.480) and a recipe (0.416) —
+proof of genuine semantic matching, not keyword overlap. Synthetic test
+turns used to verify this were not left in the real `memory.json`.
+
+### Result
+First slice of roadmap #7 done: the retrieval engine exists and is
+inspectable via `/recall`, but doesn't yet influence what ASTI says in
+conversation. That integration is the natural next slice.
