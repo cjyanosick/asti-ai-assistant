@@ -4,7 +4,16 @@ from memory import add_memory, load_memory, load_personal_memory, update_persona
 from router import classify_intent
 from tasks import add_task, load_tasks, complete_task
 from outbound_log import load_outbound_log
-from config import ALLOW_CLOUD, MAX_CLOUD_PROMPT_CHARS
+from config import (
+    DEFAULT_PROVIDER,
+    DEFAULT_MODEL,
+    CLOUD_PROVIDER,
+    CLOUD_MODEL,
+    CLOUD_API_KEY,
+    ENCRYPTION_KEY,
+    ALLOW_CLOUD,
+    MAX_CLOUD_PROMPT_CHARS,
+)
 
 import json
 import requests
@@ -333,6 +342,39 @@ User question:
 """
 
 
+def build_diagnostics_report():
+    # Privacy-safe diagnostics (roadmap #6, last slice): config and counts
+    # only, never content. Safe to read aloud or paste anywhere — no values,
+    # no keys, no personal data, no task text, no prompts.
+    try:
+        ollama_ok = requests.get("http://localhost:11434/api/tags", timeout=2).status_code == 200
+    except requests.RequestException:
+        ollama_ok = False
+
+    personal_memory = load_personal_memory()
+    categories_populated = sum(1 for v in personal_memory.values() if v)
+    total_entries = sum(len(v) for v in personal_memory.values())
+
+    tasks = load_tasks()
+    tasks_done = sum(1 for t in tasks if t["done"])
+
+    outbound = load_outbound_log()
+
+    lines = [
+        f"Local provider/model:  {DEFAULT_PROVIDER} / {DEFAULT_MODEL}",
+        f"Local model reachable: {ollama_ok}",
+        f"Cloud provider/model:  {CLOUD_PROVIDER} / {CLOUD_MODEL}",
+        f"Cloud allowed:         {ALLOW_CLOUD}",
+        f"Cloud API key set:     {bool(CLOUD_API_KEY)}",
+        f"Max outbound chars:    {MAX_CLOUD_PROMPT_CHARS}",
+        f"Encryption at rest:    {'on' if ENCRYPTION_KEY else 'off (plaintext)'}",
+        f"Personal memory:       {categories_populated}/{len(personal_memory)} categories populated, {total_entries} entries",
+        f"Tasks:                 {len(tasks)} total, {tasks_done} done",
+        f"Outbound calls logged: {len(outbound)}",
+    ]
+    return "\n".join(lines)
+
+
 #memory draw injection:
 def ask_llm(prompt, mode="chat"):
     if mode == "task":
@@ -510,6 +552,12 @@ if __name__ == "__main__":
                     f"{entry['timestamp']}  {entry['intent']:18} "
                     f"{entry['provider']}/{entry['model']}  {entry['status']}{detail}"
                 )
+            print()
+            continue
+
+        if user_input.strip() == "/status":
+            print("\n--- Diagnostics ---")
+            print(build_diagnostics_report())
             print()
             continue
 
