@@ -3,6 +3,7 @@ from model_provider import generate_response, generate_structured_response, gene
 from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory
 from router import classify_intent
 from tasks import add_task, load_tasks, complete_task
+from config import ALLOW_CLOUD
 
 import json
 import requests
@@ -107,6 +108,18 @@ _SMALL_TALK = {
     "k", "cool", "nice", "great", "awesome", "lol", "haha", "yeah", "yep", "nope",
     "sure", "np",
 }
+
+_notified_cloud_disabled = False
+
+
+def _notify_cloud_disabled_once():
+    global _notified_cloud_disabled
+    if not _notified_cloud_disabled:
+        print(
+            "[privacy] ASTI_ALLOW_CLOUD=false — answering general-knowledge "
+            "questions locally instead of via the cloud provider."
+        )
+        _notified_cloud_disabled = True
 
 
 def is_noninformative(message):
@@ -320,14 +333,21 @@ def ask_llm(prompt, mode="chat"):
         # No personal angle to this question. personal_memory.json is never
         # loaded on this path at all — not loaded-then-discarded, genuinely
         # never read — so it cannot end up in a request sent to the cloud
-        # provider. This is the hard privacy boundary.
+        # provider. This is the hard privacy boundary, independent of ALLOW_CLOUD.
         general_prompt = f"""You are a helpful, knowledgeable assistant.
 Answer the user's question directly and accurately.
 
 User question:
 {prompt}
 """
-        return generate_cloud_response(general_prompt)
+        if ALLOW_CLOUD:
+            return generate_cloud_response(general_prompt)
+
+        # User-chosen opt-out, not a silent fallback: ASTI_ALLOW_CLOUD=false
+        # means every intent answers locally, even the ones that would
+        # normally reach the cloud for better quality on plain factual questions.
+        _notify_cloud_disabled_once()
+        return generate_response(general_prompt)
 
     personal_memory = load_personal_memory() #read structured personal memory
     personal_memory_text = str(personal_memory) #translate into readable text for llama
