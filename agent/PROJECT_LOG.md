@@ -733,3 +733,32 @@ real date instead of being confused about it. `recall`/`chat` unaffected.
 `general_knowledge` responses read like talking to Claude directly, which
 was the actual goal — this path genuinely is Claude, it was just being
 handicapped by an ungrounded prompt.
+
+## Milestone: File reading via /read <path>
+
+### What changed
+- New `read_file_summary()` in `llm.py`: reads a local text file, summarizes
+  it via the local model. Deterministic `/read <path>` command, not
+  NLP-routed — reading arbitrary files from disk is a deliberate action,
+  same reasoning as `/memory`, `/forget`, `/tasks`, `/outbound`, `/recall`.
+- Always local — never `generate_cloud_response`. File content could be
+  anything, so unlike `general_knowledge` there's no cloud option here yet.
+- Capped at `MAX_FILE_READ_CHARS` (env `ASTI_MAX_FILE_READ_CHARS`, default
+  8000) for sane local-model behavior, not privacy — nothing here leaves
+  the machine regardless of the cap.
+- Plain `open()`, not `storage.py` — that boundary is for ASTI's own
+  encrypted data stores, not arbitrary external files the user points it
+  at. Handles missing file, directory, binary/non-UTF8 content, and
+  permission errors without crashing.
+
+### Verification
+Summarized a real file correctly; truncated and noted it for a file over
+the cap (tested against the 30KB `PROJECT_LOG.md` itself); clean error
+messages for a missing path and a directory.
+
+### Result
+This was the last planned "finish the foundation" item before moving to
+GUI work — the long-deferred "File tools" capability from the original
+Phase 2 plan now exists in its first slice (read + summarize; Q&A against
+a loaded file, binary/PDF support, and multi-file are separate future
+slices if wanted).
