@@ -4,13 +4,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Local (personal memory, recall, default chat)
-DEFAULT_PROVIDER = "ollama"
-DEFAULT_MODEL = "llama3:latest"
+# Local (personal memory, recall, default chat). Overridable via .env so
+# switching models/providers doesn't require editing code (roadmap #6, first
+# slice: config-driven provider/model choice). Defaults match what's been
+# running since roadmap #4/#5 — unset envs change nothing.
+DEFAULT_PROVIDER = os.environ.get("ASTI_LOCAL_PROVIDER", "ollama")
+DEFAULT_MODEL = os.environ.get("ASTI_LOCAL_MODEL", "llama3:latest")
 
 # Cloud (general-knowledge questions only — never sent personal memory)
-CLOUD_PROVIDER = "anthropic"
-CLOUD_MODEL = "claude-haiku-4-5"
+CLOUD_PROVIDER = os.environ.get("ASTI_CLOUD_PROVIDER", "anthropic")
+CLOUD_MODEL = os.environ.get("ASTI_CLOUD_MODEL", "claude-haiku-4-5")
 CLOUD_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # Encryption at rest for storage.py (roadmap #5: OS-level key management).
