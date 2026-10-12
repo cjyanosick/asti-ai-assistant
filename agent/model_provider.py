@@ -1,4 +1,5 @@
 from config import DEFAULT_PROVIDER, DEFAULT_MODEL, CLOUD_PROVIDER, CLOUD_MODEL, CLOUD_API_KEY
+from outbound_log import log_outbound_call
 import requests
 
 
@@ -44,14 +45,18 @@ def generate_structured_response(prompt, schema):
     raise ValueError(f"Unsupported provider: {DEFAULT_PROVIDER}")
 
 
-def generate_cloud_response(prompt):
+def generate_cloud_response(prompt, intent="unknown"):
     # Used only for general-knowledge questions that don't need personal
     # context. Callers must never include personal memory in `prompt` —
-    # that boundary is enforced in llm.py, not here.
+    # that boundary is enforced in llm.py, not here. `intent` is an audit
+    # label only (roadmap #6: outbound-call auditing) — this is the one
+    # place that actually knows whether the call succeeded, so it's also
+    # the one place that logs it.
     if CLOUD_PROVIDER != "anthropic":
         raise ValueError(f"Unsupported cloud provider: {CLOUD_PROVIDER}")
 
     if not CLOUD_API_KEY:
+        log_outbound_call(CLOUD_PROVIDER, CLOUD_MODEL, intent, "no_key")
         return (
             "I'd answer that from general knowledge, but no cloud API key is "
             "configured yet (set ANTHROPIC_API_KEY in agent/.env)."
@@ -75,6 +80,10 @@ def generate_cloud_response(prompt):
     )
 
     if response.status_code != 200:
+        log_outbound_call(
+            CLOUD_PROVIDER, CLOUD_MODEL, intent, "error", detail=response.status_code
+        )
         return f"Cloud request failed ({response.status_code}): {response.text[:200]}"
 
+    log_outbound_call(CLOUD_PROVIDER, CLOUD_MODEL, intent, "ok")
     return response.json()["content"][0]["text"]
