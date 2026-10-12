@@ -551,3 +551,25 @@ First slice of roadmap #6 done. Remaining pieces of the Full Model Gateway
 (user-facing privacy settings, outbound-call enforcement/auditing, context
 minimization beyond "don't load personal memory," privacy-safe
 diagnostics) are separate future slices.
+
+## Milestone: ASTI_ALLOW_CLOUD privacy setting (roadmap #6, second slice)
+
+### What changed
+- `config.ALLOW_CLOUD` (env `ASTI_ALLOW_CLOUD`, default `true`) is the first
+  user-facing privacy setting — "Cloud by choice" needs a way to choose none.
+- When false, `ask_llm()`'s `general_knowledge` branch answers via the local
+  model instead of `generate_cloud_response()`, with a one-time printed
+  notice. This only affects `general_knowledge` — the one intent that would
+  otherwise reach the cloud at all.
+- The privacy boundary from roadmap #5.5 (general_knowledge never loads
+  personal memory) holds either way — both the cloud and local sub-branches
+  `return` before `load_personal_memory()` is reached.
+
+### Verification
+Confirmed default behavior is unchanged; with `ASTI_ALLOW_CLOUD=false` the
+same question answers locally with the notice printed once; `recall`/`chat`
+intents unaffected.
+
+### Result
+Second slice of roadmap #6 done. Remaining: outbound-call
+enforcement/auditing, context minimization, privacy-safe diagnostics.
