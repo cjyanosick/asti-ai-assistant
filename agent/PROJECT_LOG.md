@@ -696,3 +696,40 @@ turns used to verify this were not left in the real `memory.json`.
 First slice of roadmap #7 done: the retrieval engine exists and is
 inspectable via `/recall`, but doesn't yet influence what ASTI says in
 conversation. That integration is the natural next slice.
+
+## Fix: ground general_knowledge responses with a proper system prompt
+
+### What changed
+- Found during manual testing: the cloud (`general_knowledge`) call had no
+  system-level grounding — the identity/instruction text and the user's
+  question were concatenated into one blob sent as a plain user message.
+  Asked about itself, Claude defaulted to generic "here are my AI
+  limitations" boilerplate, including a stale/hallucinated knowledge-cutoff
+  date, since it had nothing real to ground that claim in.
+- `generate_response()` and `generate_cloud_response()` in
+  `model_provider.py` now accept an optional `system` parameter (Ollama's
+  `/api/generate` `system` field, Anthropic's top-level `system` field).
+- `ask_llm()`'s `general_knowledge` branch builds one via
+  `_general_system_prompt()`: real identity framing, today's actual date,
+  and an explicit instruction not to volunteer generic AI disclaimers
+  unless asked. Removed the now-dead `_build_general_prompt()` — the
+  system prompt carries that role now.
+- Applied a lighter version of the same tone instruction to the local
+  chat-mode prompt. Won't make `llama3` sound like Claude — that gap is a
+  real model-capability difference, already documented as the reason
+  `general_knowledge` exists — but it's a cheap improvement within what
+  prompting can actually do there.
+
+### Verification
+A neutral technical question (TCP handshakes, rate-limiting algorithms)
+now gets a clean, well-formatted, directly-answering response with no
+unprompted disclaimer dump. The literal "what's your knowledge cutoff"
+question still returns an inaccurate specific date (a known LLM
+self-reporting quirk, not fixable without asserting a cutoff date that
+can't be verified as correct), but it now correctly reasons from today's
+real date instead of being confused about it. `recall`/`chat` unaffected.
+
+### Result
+`general_knowledge` responses read like talking to Claude directly, which
+was the actual goal — this path genuinely is Claude, it was just being
+handicapped by an ungrounded prompt.
