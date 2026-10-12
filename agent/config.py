@@ -23,6 +23,12 @@ CLOUD_MODEL = os.environ.get("ASTI_CLOUD_MODEL", "claude-haiku-4-5")
 ALLOW_CLOUD = os.environ.get("ASTI_ALLOW_CLOUD", "true").lower() != "false"
 CLOUD_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
+# Context minimization (roadmap #6): a hard cap on how much of a message can
+# leave the machine in one cloud call, independent of what it contains. Not a
+# content filter — just a size ceiling so a misclassified huge paste doesn't
+# ship in full. Local-only paths are never truncated; nothing leaves for them.
+MAX_CLOUD_PROMPT_CHARS = int(os.environ.get("ASTI_MAX_CLOUD_PROMPT_CHARS", "2000"))
+
 # Encryption at rest for storage.py (roadmap #5: OS-level key management).
 # `keyring` reads the OS-native secret store — macOS Keychain here, Windows
 # Credential Manager / Linux Secret Service on other platforms — instead of
