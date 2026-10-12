@@ -633,3 +633,29 @@ accidentally deleted via an `rm -f` aimed at clearing test artifacts
 between runs. Gitignored + encrypted at rest, so unrecoverable. Low-stakes
 content (one completed task), but flagging per Carter's standing
 instruction to always call out anything that could delete real data.
+
+## Milestone: Privacy-safe diagnostics via /status (roadmap #6, final slice)
+
+### What changed
+- New `build_diagnostics_report()` + `/status` command: local
+  provider/model and whether Ollama is actually reachable, cloud
+  provider/model, `ALLOW_CLOUD`, whether the cloud API key is set, the
+  outbound character cap, whether encryption at rest is on, and counts
+  (not content) for personal-memory categories/entries, tasks, and
+  outbound calls logged.
+- Deliberately config and counts only — no values, keys, task text, or
+  prompts anywhere in the report. The point of "privacy-safe" diagnostics
+  is that the verification tool itself can't become a new leak surface.
+
+### Verification
+Ran the report and confirmed no content leakage — just settings and
+counts. Confirmed `recall`/`general_knowledge` intents still work
+unaffected.
+
+### Result
+Final slice of roadmap #6 done. All five pieces of the Full Model Gateway
+(config-driven provider/model, the `ASTI_ALLOW_CLOUD` privacy setting,
+outbound-call auditing, context minimization, privacy-safe diagnostics)
+are complete. Roadmap #7 (semantic recall over conversation history) is
+the one remaining engineering item before #8 (the product/commercialization
+path).
