@@ -1,4 +1,4 @@
-from config import DEFAULT_PROVIDER, DEFAULT_MODEL, CLOUD_PROVIDER, CLOUD_MODEL, CLOUD_API_KEY
+from config import DEFAULT_PROVIDER, DEFAULT_MODEL, CLOUD_PROVIDER, CLOUD_MODEL, CLOUD_API_KEY, EMBEDDING_MODEL
 from outbound_log import log_outbound_call
 import requests
 
@@ -41,6 +41,20 @@ def generate_structured_response(prompt, schema):
         )
 
         return response.json()["message"]["content"]
+
+    raise ValueError(f"Unsupported provider: {DEFAULT_PROVIDER}")
+
+
+def generate_embedding(text):
+    # Always local (roadmap #7) — never routed through the cloud path,
+    # since conversation history can contain anything the user has said.
+    if DEFAULT_PROVIDER == "ollama":
+        response = requests.post(
+            "http://localhost:11434/api/embed",
+            json={"model": EMBEDDING_MODEL, "input": text},
+            timeout=30,
+        )
+        return response.json()["embeddings"][0]
 
     raise ValueError(f"Unsupported provider: {DEFAULT_PROVIDER}")
 

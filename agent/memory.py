@@ -11,7 +11,7 @@ def save_memory(memory):
     save_json(MEMORY_FILE, memory)
 
 #memory overwrite behavior
-def add_memory(user, ai):
+def add_memory(user, ai, embedding=None):
     memory = load_memory()
 
     # detect simple fact updates (color example logic)
@@ -21,11 +21,16 @@ def add_memory(user, ai):
         if "favorite color" in user.lower() and "color" in item["user"].lower():
             item["user"] = user
             item["ai"] = ai
+            if embedding is not None:
+                item["embedding"] = embedding
             updated = True
             break
 
     if not updated:
-        memory.append({"user": user, "ai": ai})
+        entry = {"user": user, "ai": ai}
+        if embedding is not None:
+            entry["embedding"] = embedding
+        memory.append(entry)
 
     save_memory(memory)
 
@@ -50,7 +55,38 @@ def search_memory(query):
 
     results.sort(reverse=True, key=lambda x: x[0])
 
-    return [item for score, item in results[:5]] 
+    return [item for score, item in results[:5]]
+
+
+def _cosine_similarity(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(y * y for y in b) ** 0.5
+
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+
+    return dot / (norm_a * norm_b)
+
+
+def semantic_search(query_embedding, top_k=5):
+    # Brute-force cosine similarity — fine at personal-use scale (hundreds
+    # of turns, not millions). A real vector index is a later concern if
+    # this ever needs to scale, not a day-one requirement.
+    # Turns saved before this feature existed have no "embedding" key and
+    # are silently skipped — only going-forward history is searchable here.
+    memory = load_memory()
+    scored = []
+
+    for item in memory:
+        if "embedding" not in item:
+            continue
+        score = _cosine_similarity(query_embedding, item["embedding"])
+        scored.append((score, item))
+
+    scored.sort(reverse=True, key=lambda x: x[0])
+
+    return scored[:top_k]
 
 PERSONAL_MEMORY_FILE = "personal_memory.json"
 

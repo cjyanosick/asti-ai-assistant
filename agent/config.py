@@ -11,6 +11,11 @@ load_dotenv()
 DEFAULT_PROVIDER = os.environ.get("ASTI_LOCAL_PROVIDER", "ollama")
 DEFAULT_MODEL = os.environ.get("ASTI_LOCAL_MODEL", "llama3:latest")
 
+# Embeddings for semantic recall over conversation history (roadmap #7).
+# Always local — sending conversation history to a cloud embeddings API
+# would be a new privacy hole, so this has no cloud counterpart.
+EMBEDDING_MODEL = os.environ.get("ASTI_EMBEDDING_MODEL", "nomic-embed-text")
+
 # Cloud (general-knowledge questions only — never sent personal memory)
 CLOUD_PROVIDER = os.environ.get("ASTI_CLOUD_PROVIDER", "anthropic")
 CLOUD_MODEL = os.environ.get("ASTI_CLOUD_MODEL", "claude-haiku-4-5")
