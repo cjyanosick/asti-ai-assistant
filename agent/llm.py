@@ -13,9 +13,11 @@ from config import (
     ENCRYPTION_KEY,
     ALLOW_CLOUD,
     MAX_CLOUD_PROMPT_CHARS,
+    MAX_FILE_READ_CHARS,
 )
 
 import json
+import os
 import requests
 from datetime import date
 
@@ -352,6 +354,55 @@ def _general_system_prompt():
     )
 
 
+def _file_summary_system_prompt():
+    return (
+        "You are ASTI, the user's personal assistant. Summarize files "
+        "clearly and concisely — key points, structure, anything notable. "
+        "Respond naturally; skip generic disclaimers."
+    )
+
+
+def read_file_summary(path):
+    # File tools, first slice. Always local (generate_response, never
+    # generate_cloud_response) — file content could be anything, so there's
+    # no cloud option here yet, unlike general_knowledge. Plain open(), not
+    # storage.py — that boundary is for ASTI's own encrypted data stores,
+    # not arbitrary external files the user points it at.
+    expanded = os.path.expanduser(path)
+
+    if not os.path.exists(expanded):
+        return f"No file found at {path}"
+
+    if os.path.isdir(expanded):
+        return f"{path} is a directory, not a file"
+
+    try:
+        with open(expanded, "r", encoding="utf-8") as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        return (
+            f"{path} doesn't look like a plain text file — binary and PDF "
+            f"files aren't supported yet"
+        )
+    except PermissionError:
+        return f"Permission denied reading {path}"
+
+    truncated = len(content) > MAX_FILE_READ_CHARS
+    if truncated:
+        content = content[:MAX_FILE_READ_CHARS]
+
+    user_prompt = f"File: {path}\n\nContent:\n{content}"
+    summary = generate_response(user_prompt, system=_file_summary_system_prompt())
+
+    if truncated:
+        summary += (
+            f"\n\n(This file is long — only the first {MAX_FILE_READ_CHARS} "
+            f"characters were read.)"
+        )
+
+    return summary
+
+
 def build_diagnostics_report():
     # Privacy-safe diagnostics (roadmap #6, last slice): config and counts
     # only, never content. Safe to read aloud or paste anywhere — no values,
@@ -593,6 +644,16 @@ if __name__ == "__main__":
             for score, item in results:
                 print(f"[{score:.3f}] User: {item['user']}")
                 print(f"         AI: {item['ai'][:150]}")
+            print()
+            continue
+
+        if user_input.strip().startswith("/read"):
+            parts = user_input.split(maxsplit=1)
+            if len(parts) != 2:
+                print("\nUsage: /read <path>")
+                continue
+            print("\n--- File Summary ---")
+            print(read_file_summary(parts[1].strip()))
             print()
             continue
 
