@@ -34,6 +34,11 @@ CLOUD_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 # ship in full. Local-only paths are never truncated; nothing leaves for them.
 MAX_CLOUD_PROMPT_CHARS = int(os.environ.get("ASTI_MAX_CLOUD_PROMPT_CHARS", "2000"))
 
+# File tools: cap on how much of a user-pointed-to file gets read into one
+# local summarization prompt. Sane-behavior cap, not a privacy mechanism —
+# file reads never leave the machine, full stop, no cloud option yet.
+MAX_FILE_READ_CHARS = int(os.environ.get("ASTI_MAX_FILE_READ_CHARS", "8000"))
+
 # Encryption at rest for storage.py (roadmap #5: OS-level key management).
 # `keyring` reads the OS-native secret store — macOS Keychain here, Windows
 # Credential Manager / Linux Secret Service on other platforms — instead of
