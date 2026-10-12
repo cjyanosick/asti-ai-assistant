@@ -4,15 +4,19 @@ import requests
 
 
 
-def generate_response(prompt):
+def generate_response(prompt, system=None):
     if DEFAULT_PROVIDER == "ollama":
+        payload = {
+            "model": DEFAULT_MODEL,
+            "prompt": prompt,
+            "stream": False,
+        }
+        if system:
+            payload["system"] = system
+
         response = requests.post(
             "http://localhost:11434/api/generate",
-            json={
-                "model": DEFAULT_MODEL,
-                "prompt": prompt,
-                "stream": False
-            }
+            json=payload,
         )
 
         return response.json()["response"]
@@ -59,7 +63,7 @@ def generate_embedding(text):
     raise ValueError(f"Unsupported provider: {DEFAULT_PROVIDER}")
 
 
-def generate_cloud_response(prompt, intent="unknown"):
+def generate_cloud_response(prompt, intent="unknown", system=None):
     # Used only for general-knowledge questions that don't need personal
     # context. Callers must never include personal memory in `prompt` —
     # that boundary is enforced in llm.py, not here. `intent` is an audit
@@ -76,6 +80,16 @@ def generate_cloud_response(prompt, intent="unknown"):
             "configured yet (set ANTHROPIC_API_KEY in agent/.env)."
         )
 
+    json_body = {
+        "model": CLOUD_MODEL,
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+    }
+    if system:
+        json_body["system"] = system
+
     response = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={
@@ -83,13 +97,7 @@ def generate_cloud_response(prompt, intent="unknown"):
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         },
-        json={
-            "model": CLOUD_MODEL,
-            "max_tokens": 1024,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-        },
+        json=json_body,
         timeout=30,
     )
 

@@ -17,6 +17,7 @@ from config import (
 
 import json
 import requests
+from datetime import date
 
 MEMORY_SCHEMA = {
     "type": "object",
@@ -333,13 +334,22 @@ Return JSON matching the schema."""
     return text if text else prompt.strip()
 
 
-def _build_general_prompt(question):
-    return f"""You are a helpful, knowledgeable assistant.
-Answer the user's question directly and accurately.
-
-User question:
-{question}
-"""
+def _general_system_prompt():
+    # Response-quality fix: without this, the cloud model gets a bare,
+    # context-free prompt and defaults to generic "I'm an AI, here are my
+    # limitations" boilerplate — including a made-up knowledge cutoff date,
+    # since it has nothing real to ground that claim in. Giving it today's
+    # actual date and explicit identity/tone framing fixes that directly.
+    today = date.today().isoformat()
+    return (
+        f"You are ASTI, the user's personal AI assistant, answering a "
+        f"general-knowledge question with no connection to their personal "
+        f"life. Today's date is {today}.\n\n"
+        f"Answer directly and naturally, the way you normally would. Do not "
+        f"list generic AI limitations, disclaimers, or capability caveats "
+        f"unless the user specifically asks about them or they are directly "
+        f"relevant to answering the question."
+    )
 
 
 def build_diagnostics_report():
@@ -390,6 +400,8 @@ def ask_llm(prompt, mode="chat"):
         # loaded on this path at all — not loaded-then-discarded, genuinely
         # never read — so it cannot end up in a request sent to the cloud
         # provider. This is the hard privacy boundary, independent of ALLOW_CLOUD.
+        system_prompt = _general_system_prompt()
+
         if ALLOW_CLOUD:
             # Context minimization: cap what actually leaves the machine,
             # independent of content — a misclassified huge paste shouldn't
@@ -399,7 +411,7 @@ def ask_llm(prompt, mode="chat"):
             cloud_question = prompt[:MAX_CLOUD_PROMPT_CHARS] if truncated else prompt
 
             response = generate_cloud_response(
-                _build_general_prompt(cloud_question), intent="general_knowledge"
+                cloud_question, intent="general_knowledge", system=system_prompt
             )
             if truncated:
                 response += (
@@ -412,7 +424,7 @@ def ask_llm(prompt, mode="chat"):
         # means every intent answers locally, even the ones that would
         # normally reach the cloud for better quality on plain factual questions.
         _notify_cloud_disabled_once()
-        return generate_response(_build_general_prompt(prompt))
+        return generate_response(prompt, system=system_prompt)
 
     personal_memory = load_personal_memory() #read structured personal memory
     personal_memory_text = str(personal_memory) #translate into readable text for llama
@@ -444,7 +456,9 @@ User question:
         memory_text += f"User: {item['user']}\nAI: {item['ai']}\n\n"
 
     full_prompt = f"""
-You are ASTI, a personal assistant for the user.
+You are ASTI, a personal assistant for the user. Today's date is {date.today().isoformat()}.
+Respond naturally and conversationally — don't list generic AI capability
+caveats or disclaimers unless the user specifically asks about them.
 
 Personal memory below is the authoritative source for facts about the user.
 Conversation history is only for conversational tone and context.
