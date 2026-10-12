@@ -762,3 +762,40 @@ GUI work — the long-deferred "File tools" capability from the original
 Phase 2 plan now exists in its first slice (read + summarize; Q&A against
 a loaded file, binary/PDF support, and multi-file are separate future
 slices if wanted).
+
+## Attempted and reverted: semantic recall wired into live chat
+
+### What was tried
+- Wired `semantic_search()` into `chat` mode's prompt: recent 3 turns plus
+  the top 2 semantic matches for the live message, added under the
+  existing "personal memory is authoritative, ignore conflicting history"
+  instruction — the same guard already proven to handle recent-turn
+  conflicts correctly.
+
+### What broke
+- Seeded a stale turn ("my savings goal is 10000 dollars") alongside the
+  real `personal_memory` value (50000) and asked, via `chat`, "how much
+  money am I trying to save up" — `llama3` answered **10000**, the stale
+  value. This is the exact stale-value bug fixed earlier this session
+  (recent-turn conversation history vs. keyword search), reintroduced via
+  semantic match instead.
+- Tried one round of a stronger, section-specific warning ("this section
+  may be OLD and OUTDATED, never use a value from it"). Result: fixed one
+  phrasing of the question, failed on another — and the failing case got
+  *worse*, falsely claiming the stale number came from personal memory
+  (false attribution, not just a wrong value).
+
+### Decision
+Reverted. Not chasing further prompt iterations against a proven
+correctness regression — same discipline as the earlier extraction-prompt
+whack-a-mole this session already learned to stop doing. `chat` is back to
+recent-turns-only, unchanged behavior from before this attempt.
+
+### Result
+Semantic recall stays available only as the explicit, user-invoked
+`/recall` command — nothing it returns is ever treated as ground truth
+automatically, which is what makes it safe regardless of retrieval
+quality. Automatic injection into live responses is not revisited unless
+a materially different approach is proposed (e.g. a larger/different
+local model, or filtering semantic matches against personal-memory
+conflicts before injection) — not just reworded prompt instructions.
