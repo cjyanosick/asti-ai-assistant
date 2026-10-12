@@ -526,3 +526,28 @@ files passed with the keychain-only key.
 Roadmap item #5 done: the key that unlocks `personal_memory.json`,
 `memory.json`, and `tasks.json` lives in the OS keychain, not a dotenv
 file. Closes the gap flagged at the end of roadmap #4.
+
+## Milestone: Config-driven provider/model choice (roadmap #6, first slice)
+
+### What changed
+- `DEFAULT_PROVIDER`, `DEFAULT_MODEL`, `CLOUD_PROVIDER`, `CLOUD_MODEL` in
+  `config.py` now read from env vars (`ASTI_LOCAL_PROVIDER`,
+  `ASTI_LOCAL_MODEL`, `ASTI_CLOUD_PROVIDER`, `ASTI_CLOUD_MODEL`) via the
+  same `.env` pattern already used for secrets, defaulting to today's
+  hardcoded values. Switching models no longer requires editing code.
+- `model_provider.py`'s dispatch logic is unchanged — unsupported providers
+  still raise a clear error. No second cloud provider is implemented yet,
+  so this slice is about the *model/provider choice* being config-driven,
+  not about adding new provider integrations.
+
+### Verification
+Confirmed no env vars set produces identical values to before the change;
+confirmed `ASTI_LOCAL_MODEL` override is picked up; ran a full smoke test
+through both the local `recall` path and the cloud `general_knowledge`
+path — both still work.
+
+### Result
+First slice of roadmap #6 done. Remaining pieces of the Full Model Gateway
+(user-facing privacy settings, outbound-call enforcement/auditing, context
+minimization beyond "don't load personal memory," privacy-safe
+diagnostics) are separate future slices.
