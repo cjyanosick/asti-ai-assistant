@@ -501,3 +501,28 @@ only — it does not touch the separate git-history plaintext exposure
 (`agent/CLAUDE.md`, "Known housekeeping issue"), which is still open.
 Roadmap #5 (OS-level key management) is the natural next step for this —
 `ENCRYPTION_KEY` currently lives in a `.env` file, not a real key store.
+
+## Milestone: OS-level key management (roadmap #5)
+
+### What changed
+- `config.py` now reads `ENCRYPTION_KEY` via the `keyring` package — macOS
+  Keychain on this machine, Windows Credential Manager / Linux Secret
+  Service on other platforms, one API. `storage.py` is untouched; it still
+  just reads `ENCRYPTION_KEY` from config, same as roadmap #4.
+- One-time migration on first run: if the keychain has no key yet but a
+  legacy `ENCRYPTION_KEY` line still exists in `.env`, that value is adopted
+  into the keychain and returned. Every run after that reads keychain only.
+- Removed the `ENCRYPTION_KEY` line from `.env` entirely once the migration
+  was confirmed — the key no longer lives in any plaintext file.
+
+### Verification
+Ran the migration once and confirmed the key landed in Keychain and matched
+the `.env` value. Then removed the `ENCRYPTION_KEY` line from `.env` and
+re-ran — `config.ENCRYPTION_KEY` still loaded correctly from Keychain alone.
+Full `ask_llm(mode="recall")` smoke test against the already-encrypted data
+files passed with the keychain-only key.
+
+### Result
+Roadmap item #5 done: the key that unlocks `personal_memory.json`,
+`memory.json`, and `tasks.json` lives in the OS keychain, not a dotenv
+file. Closes the gap flagged at the end of roadmap #4.
