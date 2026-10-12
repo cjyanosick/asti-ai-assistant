@@ -14,6 +14,13 @@ DEFAULT_MODEL = os.environ.get("ASTI_LOCAL_MODEL", "llama3:latest")
 # Cloud (general-knowledge questions only — never sent personal memory)
 CLOUD_PROVIDER = os.environ.get("ASTI_CLOUD_PROVIDER", "anthropic")
 CLOUD_MODEL = os.environ.get("ASTI_CLOUD_MODEL", "claude-haiku-4-5")
+
+# User-facing privacy setting: "Cloud by choice" means there has to be a way
+# to choose none. Default true (today's behavior unchanged); set
+# ASTI_ALLOW_CLOUD=false to force every intent to answer locally, including
+# general_knowledge — lower quality on plain factual questions, but ASTI
+# never reaches the cloud provider at all.
+ALLOW_CLOUD = os.environ.get("ASTI_ALLOW_CLOUD", "true").lower() != "false"
 CLOUD_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # Encryption at rest for storage.py (roadmap #5: OS-level key management).
