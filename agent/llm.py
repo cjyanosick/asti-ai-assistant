@@ -4,7 +4,7 @@ from memory import add_memory, load_memory, load_personal_memory, update_persona
 from router import classify_intent
 from tasks import add_task, load_tasks, complete_task
 from outbound_log import load_outbound_log
-from config import ALLOW_CLOUD
+from config import ALLOW_CLOUD, MAX_CLOUD_PROMPT_CHARS
 
 import json
 import requests
@@ -324,6 +324,15 @@ Return JSON matching the schema."""
     return text if text else prompt.strip()
 
 
+def _build_general_prompt(question):
+    return f"""You are a helpful, knowledgeable assistant.
+Answer the user's question directly and accurately.
+
+User question:
+{question}
+"""
+
+
 #memory draw injection:
 def ask_llm(prompt, mode="chat"):
     if mode == "task":
@@ -335,20 +344,29 @@ def ask_llm(prompt, mode="chat"):
         # loaded on this path at all — not loaded-then-discarded, genuinely
         # never read — so it cannot end up in a request sent to the cloud
         # provider. This is the hard privacy boundary, independent of ALLOW_CLOUD.
-        general_prompt = f"""You are a helpful, knowledgeable assistant.
-Answer the user's question directly and accurately.
-
-User question:
-{prompt}
-"""
         if ALLOW_CLOUD:
-            return generate_cloud_response(general_prompt, intent="general_knowledge")
+            # Context minimization: cap what actually leaves the machine,
+            # independent of content — a misclassified huge paste shouldn't
+            # ship in full just because nothing else caught it. Local paths
+            # are never truncated; truncation only matters for what's sent out.
+            truncated = len(prompt) > MAX_CLOUD_PROMPT_CHARS
+            cloud_question = prompt[:MAX_CLOUD_PROMPT_CHARS] if truncated else prompt
+
+            response = generate_cloud_response(
+                _build_general_prompt(cloud_question), intent="general_knowledge"
+            )
+            if truncated:
+                response += (
+                    f"\n\n(Your message was long — only the first "
+                    f"{MAX_CLOUD_PROMPT_CHARS} characters were sent to the cloud provider.)"
+                )
+            return response
 
         # User-chosen opt-out, not a silent fallback: ASTI_ALLOW_CLOUD=false
         # means every intent answers locally, even the ones that would
         # normally reach the cloud for better quality on plain factual questions.
         _notify_cloud_disabled_once()
-        return generate_response(general_prompt)
+        return generate_response(_build_general_prompt(prompt))
 
     personal_memory = load_personal_memory() #read structured personal memory
     personal_memory_text = str(personal_memory) #translate into readable text for llama
