@@ -1,6 +1,6 @@
 import re
-from model_provider import generate_response, generate_structured_response, generate_cloud_response
-from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory
+from model_provider import generate_response, generate_structured_response, generate_cloud_response, generate_embedding
+from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory, semantic_search
 from router import classify_intent
 from tasks import add_task, load_tasks, complete_task
 from outbound_log import load_outbound_log
@@ -360,6 +360,9 @@ def build_diagnostics_report():
 
     outbound = load_outbound_log()
 
+    history = load_memory()
+    embedded_turns = sum(1 for item in history if "embedding" in item)
+
     lines = [
         f"Local provider/model:  {DEFAULT_PROVIDER} / {DEFAULT_MODEL}",
         f"Local model reachable: {ollama_ok}",
@@ -371,6 +374,7 @@ def build_diagnostics_report():
         f"Personal memory:       {categories_populated}/{len(personal_memory)} categories populated, {total_entries} entries",
         f"Tasks:                 {len(tasks)} total, {tasks_done} done",
         f"Outbound calls logged: {len(outbound)}",
+        f"Conversation turns:    {len(history)} total, {embedded_turns} semantically searchable",
     ]
     return "\n".join(lines)
 
@@ -561,6 +565,23 @@ if __name__ == "__main__":
             print()
             continue
 
+        if user_input.strip().startswith("/recall"):
+            parts = user_input.split(maxsplit=1)
+            if len(parts) != 2:
+                print("\nUsage: /recall <query>")
+                continue
+            query_embedding = generate_embedding(parts[1])
+            results = semantic_search(query_embedding, top_k=5)
+            print("\n--- Semantic Recall ---")
+            if not results:
+                print("(no embedded conversation turns yet — only turns saved "
+                      "since roadmap #7 are searchable this way)")
+            for score, item in results:
+                print(f"[{score:.3f}] User: {item['user']}")
+                print(f"         AI: {item['ai'][:150]}")
+            print()
+            continue
+
         intent = classify_intent(user_input)
         print(f"[intent: {intent}]")
 
@@ -579,5 +600,13 @@ if __name__ == "__main__":
         response = ask_llm(user_input, mode=intent)
         print("\nAI:", response)
 
-        add_memory(user_input, response)
+        # Embed the turn for semantic recall (roadmap #7) — best-effort: if
+        # the embedding model isn't available for some reason, still save
+        # the turn itself rather than losing conversation history over it.
+        try:
+            embedding = generate_embedding(f"{user_input}\n{response}")
+        except requests.RequestException:
+            embedding = None
+
+        add_memory(user_input, response, embedding=embedding)
 
