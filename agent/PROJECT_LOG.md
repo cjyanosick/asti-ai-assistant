@@ -599,3 +599,37 @@ same as `personal_memory.json`/`memory.json`/`tasks.json`.
 ### Result
 Third slice of roadmap #6 done. Remaining: context minimization beyond
 "don't load personal memory," privacy-safe diagnostics.
+
+## Milestone: Outbound prompt size cap (roadmap #6, fourth slice)
+
+### What changed
+- `MAX_CLOUD_PROMPT_CHARS` (env `ASTI_MAX_CLOUD_PROMPT_CHARS`, default 2000)
+  caps how much of a message can leave the machine in one cloud call,
+  independent of content — a misclassified huge paste doesn't ship in full
+  just because nothing else caught it. Not a content filter, a size ceiling.
+- Only the `general_knowledge` cloud path truncates. The
+  `ASTI_ALLOW_CLOUD=false` local fallback and every other intent always get
+  the full message — truncation only matters for what actually leaves.
+- Truncation appends a visible notice to the response rather than silently
+  dropping content. Factored `_build_general_prompt()` out to avoid
+  duplicating the prompt template between truncated/untruncated branches.
+- Deliberately did NOT cross-check the outgoing text against stored
+  personal-memory values — that would require loading personal memory on
+  this path, which breaks the documented "never loaded on this path"
+  guarantee from roadmap #6's earlier slices. Out of scope for this step.
+
+### Verification
+Short messages unaffected. A long message truncates to 2000 chars with a
+notice appended before the cloud call. The same long message through
+`ASTI_ALLOW_CLOUD=false` is NOT truncated — confirms the cap only applies
+to what leaves the machine. `recall`/`task` intents unaffected.
+
+### Result
+Fourth slice of roadmap #6 done. Remaining: privacy-safe diagnostics.
+
+### Note
+While testing this slice, `tasks.json` (real data, not test output) was
+accidentally deleted via an `rm -f` aimed at clearing test artifacts
+between runs. Gitignored + encrypted at rest, so unrecoverable. Low-stakes
+content (one completed task), but flagging per Carter's standing
+instruction to always call out anything that could delete real data.
