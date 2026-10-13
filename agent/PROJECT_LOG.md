@@ -1244,3 +1244,56 @@ This closes out the GUI polish pass's planned panels: chat, recall
 search, file upload, memory vault, diagnostics, and cloud toggle (tasks
 shipped then removed per Carter's call). Remaining: the general layout
 pass, now that everything is actually in the GUI to evaluate.
+
+## Fix: local-fallback general_knowledge answers can confidently fabricate facts
+
+### What was reported
+Carter said the agent "seemed limited when cloud was on, and reaching
+the cloud when off" — the opposite of expected, and worrying given the
+toggle had just shipped.
+
+### What was actually happening
+Investigated with real evidence, not guessing: compared `outbound_log.py`
+entries against `cloud_setting.json`'s last-modified time. The toggle was
+working correctly the entire time — zero outbound calls after Carter
+switched cloud off. What looked like "must be cloud, that's detailed" was
+llama3 **confidently fabricating a fake, detailed "OpenAI Hack hackathon"
+story** in response to "open ai hack" — a real hallucination, not a
+routing bug. Detailed isn't the same as true.
+
+### What was tried and didn't work
+Added an explicit "if you don't know, say so instead of inventing an
+answer" instruction to the shared general-knowledge system prompt.
+Retested the identical question — llama3 fabricated a *second*,
+differently-detailed fake story anyway. Confirmed this is a genuine
+capability gap, not a prompt-wording problem, by running the same
+question through the cloud path: Claude handled it correctly (asked for
+clarification, named what it would need to verify). Not iterating the
+prompt further against a model that demonstrably can't follow the
+instruction — same discipline as the earlier router whack-a-mole.
+
+### The real fix
+Since the local model can't be trusted to flag its own unreliability,
+Python does it unconditionally instead. Every `general_knowledge` answer
+that takes the local-fallback path (cloud off) now gets a deterministic
+warning appended regardless of what the model said: local answers can be
+confidently wrong on events/incidents/dates, verify independently. Cloud
+answers are unaffected.
+
+### Verification
+Direct test against the exact failing question with cloud off shows the
+warning; the identical call with cloud on does not. Full server check
+confirms nothing else broke. Carter's real `cloud_setting.json` restored
+to its actual prior state (off) after testing.
+
+### Why this matters beyond this one bug
+This is the most serious trust finding of the polish pass so far — not
+"the local model is lower quality" (already an accepted, named tradeoff
+when the toggle shipped) but "the local model can present fabricated
+specifics with full confidence." That's a materially bigger risk,
+especially given the stated target audience includes regulated
+professional users. Worth remembering if other local-only paths (or a
+future smaller/different local model) are evaluated: check not just
+answer quality, but whether the model can be trusted to flag its own
+uncertainty, and don't assume a system-prompt instruction fixes that —
+this one didn't.
