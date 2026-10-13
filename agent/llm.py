@@ -319,7 +319,12 @@ def _general_system_prompt():
         f"Answer directly and naturally, the way you normally would. Do not "
         f"list generic AI limitations, disclaimers, or capability caveats "
         f"unless the user specifically asks about them or they are directly "
-        f"relevant to answering the question."
+        f"relevant to answering the question.\n\n"
+        f"If you do not actually know the answer, or the question references "
+        f"something specific you cannot verify (an event, incident, product, "
+        f"or detail), say so plainly instead of inventing a plausible-sounding "
+        f"answer. A confident but made-up answer is worse than admitting "
+        f"you don't know."
     )
 
 
@@ -514,7 +519,22 @@ def ask_llm(prompt, mode="chat"):
         # every intent answers locally, even the ones that would normally
         # reach the cloud for better quality on plain factual questions.
         _notify_cloud_disabled_once()
-        return generate_response(prompt, system=system_prompt)
+        local_response = generate_response(prompt, system=system_prompt)
+
+        # Deterministic, not model-trusted: tried telling llama3 to admit
+        # uncertainty instead of inventing plausible-sounding specifics
+        # (events, incidents, dates) — it still confidently fabricated a
+        # detailed but entirely fake story on a real test question. Claude
+        # handled the identical question correctly, so this is a genuine
+        # capability gap in the small local model, not fixable by
+        # rewording the instruction. Since the model can't be trusted to
+        # flag its own unreliability here, Python does it unconditionally
+        # on every local-fallback general_knowledge answer instead.
+        return local_response + (
+            "\n\n⚠️ Answered locally (cloud is off) — the local model can "
+            "confidently state incorrect specifics on topics like events, "
+            "incidents, or dates. Verify anything specific independently."
+        )
 
     personal_memory = load_personal_memory() #read structured personal memory
     personal_memory_text = str(personal_memory) #translate into readable text for llama
