@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 
-from llm import process_turn, summarize_uploaded_file, ALLOWED_MEMORY_CATEGORIES
+from llm import process_turn, summarize_uploaded_file, ALLOWED_MEMORY_CATEGORIES, build_diagnostics_report
 from memory import (
     semantic_search,
     load_personal_memory,
@@ -142,6 +142,15 @@ def complete_task_route():
         return jsonify({"status": "ok"})
 
     return jsonify({"error": f"no task with id {task_id}"}), 404
+
+
+@app.route("/api/status", methods=["GET"])
+def get_status():
+    # Same build_diagnostics_report() the CLI's /status uses, verbatim -
+    # one source of truth, config/counts only, never content (see the
+    # function's own docstring comment for the privacy-safe-diagnostics
+    # reasoning from roadmap #6).
+    return jsonify({"report": build_diagnostics_report()})
 
 
 if __name__ == "__main__":

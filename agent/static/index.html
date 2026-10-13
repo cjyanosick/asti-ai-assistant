@@ -368,6 +368,18 @@
     height: 15px;
     cursor: pointer;
   }
+  .status-report {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    margin: 0;
+  }
   .form-row {
     display: flex;
     gap: 6px;
@@ -405,6 +417,7 @@
   <header>
     <h1>ASTI</h1>
     <span>local-first personal assistant</span>
+    <button id="status-open" class="header-btn">📊 Status</button>
     <button id="tasks-open" class="header-btn">✅ Tasks</button>
     <button id="memory-open" class="header-btn">🧠 Memory</button>
     <button id="recall-open" class="header-btn">🔍 Recall</button>
@@ -415,6 +428,19 @@
     <input id="file-input" type="file" hidden>
     <textarea id="input" rows="1" placeholder="Message ASTI..."></textarea>
     <button id="send">Send</button>
+  </div>
+</div>
+
+<div id="status-backdrop" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Diagnostics</h2>
+      <button id="status-close" class="modal-close">&times;</button>
+    </div>
+    <div class="modal-actions">
+      <button id="status-refresh">Refresh</button>
+    </div>
+    <pre id="status-report" class="status-report">Loading…</pre>
   </div>
 </div>
 
@@ -1046,6 +1072,46 @@ tasksFormText.addEventListener("keydown", (e) => {
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !tasksBackdrop.hidden) closeTasks();
+});
+
+// --- Diagnostics modal ---
+const statusBackdrop = document.getElementById("status-backdrop");
+const statusOpen = document.getElementById("status-open");
+const statusClose = document.getElementById("status-close");
+const statusRefresh = document.getElementById("status-refresh");
+const statusReport = document.getElementById("status-report");
+
+async function loadStatusReport() {
+  statusReport.textContent = "Loading…";
+  try {
+    const res = await fetch("/api/status");
+    if (!res.ok) {
+      statusReport.textContent = "Could not load diagnostics.";
+      return;
+    }
+    const data = await res.json();
+    statusReport.textContent = data.report;
+  } catch (e) {
+    statusReport.textContent = "Could not reach ASTI.";
+  }
+}
+
+function openStatus() {
+  statusBackdrop.hidden = false;
+  loadStatusReport();
+}
+function closeStatus() {
+  statusBackdrop.hidden = true;
+}
+
+statusOpen.addEventListener("click", openStatus);
+statusClose.addEventListener("click", closeStatus);
+statusRefresh.addEventListener("click", loadStatusReport);
+statusBackdrop.addEventListener("click", (e) => {
+  if (e.target === statusBackdrop) closeStatus();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !statusBackdrop.hidden) closeStatus();
 });
 </script>
 </body>
