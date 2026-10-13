@@ -135,6 +135,104 @@
   #send:not(:disabled):hover {
     filter: brightness(1.08);
   }
+  .header-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .header-btn:hover {
+    border-color: var(--accent);
+  }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: min(560px, 90vw);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    padding: 18px;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .modal-header h2 {
+    font-size: 14px;
+    margin: 0;
+  }
+  .modal-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .modal-search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .modal-search input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 12px;
+    font-size: 13px;
+    outline: none;
+  }
+  .modal-search input:focus { border-color: var(--accent); }
+  .modal-search button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #recall-results {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .recall-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .recall-score {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .recall-empty {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
 </style>
 </head>
 <body>
@@ -142,11 +240,26 @@
   <header>
     <h1>ASTI</h1>
     <span>local-first personal assistant</span>
+    <button id="recall-open" class="header-btn">🔍 Recall</button>
   </header>
   <div id="messages"></div>
   <div id="composer">
     <textarea id="input" rows="1" placeholder="Message ASTI..."></textarea>
     <button id="send">Send</button>
+  </div>
+</div>
+
+<div id="recall-backdrop" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Semantic Recall</h2>
+      <button id="recall-close" class="modal-close">&times;</button>
+    </div>
+    <div class="modal-search">
+      <input id="recall-input" type="text" placeholder="Search past conversations...">
+      <button id="recall-search">Search</button>
+    </div>
+    <div id="recall-results"></div>
   </div>
 </div>
 
@@ -234,6 +347,92 @@ inputEl.addEventListener("keydown", (e) => {
 sendEl.addEventListener("click", sendMessage);
 
 inputEl.focus();
+
+// --- Semantic recall modal ---
+const recallBackdrop = document.getElementById("recall-backdrop");
+const recallOpen = document.getElementById("recall-open");
+const recallClose = document.getElementById("recall-close");
+const recallInput = document.getElementById("recall-input");
+const recallSearchBtn = document.getElementById("recall-search");
+const recallResults = document.getElementById("recall-results");
+
+function openRecall() {
+  recallBackdrop.hidden = false;
+  recallInput.focus();
+}
+
+function closeRecall() {
+  recallBackdrop.hidden = true;
+}
+
+async function runRecallSearch() {
+  const query = recallInput.value.trim();
+  if (!query) return;
+
+  recallResults.innerHTML = '<div class="recall-empty">Searching…</div>';
+
+  try {
+    const res = await fetch("/api/recall", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      recallResults.innerHTML = '<div class="recall-empty">Error: ' +
+        (err.error || res.statusText) + "</div>";
+      return;
+    }
+
+    const data = await res.json();
+    recallResults.innerHTML = "";
+
+    if (!data.results.length) {
+      recallResults.innerHTML =
+        '<div class="recall-empty">No matches — only turns saved since ' +
+        "semantic recall was added are searchable this way.</div>";
+      return;
+    }
+
+    for (const r of data.results) {
+      const div = document.createElement("div");
+      div.className = "recall-item";
+      const score = document.createElement("div");
+      score.className = "recall-score";
+      score.textContent = "score " + r.score.toFixed(3);
+      const user = document.createElement("div");
+      user.textContent = "You: " + r.user;
+      const ai = document.createElement("div");
+      ai.style.color = "var(--text-dim)";
+      ai.style.marginTop = "4px";
+      ai.textContent = "ASTI: " + r.ai;
+      div.appendChild(score);
+      div.appendChild(user);
+      div.appendChild(ai);
+      recallResults.appendChild(div);
+    }
+  } catch (e) {
+    recallResults.innerHTML =
+      '<div class="recall-empty">Could not reach ASTI.</div>';
+  }
+}
+
+recallOpen.addEventListener("click", openRecall);
+recallClose.addEventListener("click", closeRecall);
+recallBackdrop.addEventListener("click", (e) => {
+  if (e.target === recallBackdrop) closeRecall();
+});
+recallSearchBtn.addEventListener("click", runRecallSearch);
+recallInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    runRecallSearch();
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !recallBackdrop.hidden) closeRecall();
+});
 </script>
 </body>
 </html>
