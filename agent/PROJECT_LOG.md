@@ -962,3 +962,42 @@ File reads are now full conversation participants — searchable, and
 referenced naturally in follow-up chat when the router classifies the
 follow-up correctly. "File tools" (upload, PDF/docx, persistence) is
 functionally complete as a first full slice.
+
+## Fix: "what about this doc" routed to general_knowledge, lost all context
+
+### What happened
+Carter hit the exact router gap flagged in the persistence milestone
+above, immediately: uploaded `Playbook 1.pdf` (a phishing/BEC incident
+response playbook), then asked "what are the grc parts of this doc" —
+classified `general_knowledge`, which never loads conversation history.
+The question went to Claude with zero context and correctly replied "I
+don't see any document attached."
+
+### Two issues found and fixed
+1. **Router gap** — added a deterministic check in `classify_intent()`,
+   before the LLM call: a message matching "this/that/the
+   doc(ument)/file/pdf" always routes to `chat` now. Mechanical signal,
+   not a judgment call, so Python enforces it rather than more prompt
+   tuning on the classifier.
+2. **Recency bias** — once the bad "I don't see any document" answer
+   happened, it became the most recent AI turn in context, and the local
+   model tended to just agree with its own prior wrong statement instead
+   of looking back at the real file summary two turns earlier. Confirmed
+   this by testing with clean context (just the real summary turn, no
+   polluting prior answer) — it then answered correctly, citing the
+   actual PCI DSS references in the playbook (8.2/8.3, 12.6.3.1, 12.10.1).
+
+### Remediation
+Cleaned up Carter's real conversation history: removed the two erroneous
+"I don't see any document" turns and replaced them with the correct
+answer, so his actual history reflects reality rather than two wrong bot
+responses that would have kept corrupting near-future follow-ups via
+recency bias. Backed up before editing.
+
+### Result
+File-reference follow-ups now stay local and use conversation history
+correctly. The recency-bias finding (a bad answer becomes "sticky" for a
+few turns once it's in context) is a real, reproducible local-model
+behavior worth remembering if other router/context bugs surface — the
+fallout isn't just the one bad answer, it's a few turns of degraded
+answers after it until the bad turn ages out of the recent-3 window.
