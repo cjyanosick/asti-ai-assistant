@@ -11,6 +11,7 @@ INTENTS = {
     "recall",            # user is asking ASTI to retrieve a fact it already stored about them
     "general_knowledge", # a question with no personal angle — answered without personal memory
     "task",              # user wants to record a to-do / reminder for themselves
+    "task_complete",     # user is saying an existing task is done, not creating a new one
 }
 
 # Deterministic override, checked before the LLM call. A message that
@@ -72,6 +73,16 @@ Intents:
   even when it uses a verb like "make" or "set" — there's no real-world
   action to complete, just a number to update. A question about anything
   already stored is recall, not task.
+- task_complete: the user is explicitly saying an EXISTING task is done,
+  finished, or should be checked off — not creating a new one. Needs a
+  clear completion signal: "mark buy milk as done", "I finished calling
+  the dentist", "check off the report task", "done with that". If the
+  message just mentions something that happens to match a task's wording,
+  without clearly saying it's complete (e.g. "I called the dentist today,
+  it went fine" — sharing an experience, not asking for a checkbox), that
+  is chat, not task_complete. When genuinely unsure whether this is a
+  completion signal or just conversation, prefer chat — task_complete
+  takes an action, so it should only fire on a clear signal.
 
 User message:
 {message}
