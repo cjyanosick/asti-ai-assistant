@@ -1140,3 +1140,26 @@ turns) found and cleaned from real data after testing.
 ### Result
 Tasks are a first-class conversational capability now: create, query,
 and complete, not just create.
+
+## Milestone: Diagnostics panel in the GUI (polish pass, step 4)
+
+### What changed
+- New `GET /api/status`, a thin wrapper returning `build_diagnostics_report()`
+  verbatim — same function the CLI's `/status` uses, so GUI and CLI can
+  never show different diagnostics.
+- Frontend: a "Status" button opens a modal showing the report in a
+  monospace block, with a Refresh button. Simplest of the four modals so
+  far — no interactivity beyond fetch-and-display.
+
+### Verification
+Endpoint returns real data (provider/model config, Ollama reachability,
+cloud settings, encryption status, real counts). HTML validity and
+structural balance checks pass; full end-to-end server check confirms
+nothing else broke. No content in the response to worry about leaking.
+
+### Result
+Fourth step of the GUI polish pass done. Last remaining piece: the cloud
+toggle, which needs the `ALLOW_CLOUD` live-reload fix first (currently a
+load-once constant from `.env`; a GUI toggle needs it read fresh per
+call). After that: the general layout pass, now that everything is
+actually in the GUI to evaluate.
