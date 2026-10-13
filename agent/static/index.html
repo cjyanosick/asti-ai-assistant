@@ -197,6 +197,10 @@
   .header-btn:hover {
     border-color: var(--accent);
   }
+  #cloud-toggle.off {
+    border-color: #5c2e30;
+    color: #f0a8a8;
+  }
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -391,6 +395,7 @@
   <header>
     <h1>ASTI</h1>
     <span>local-first personal assistant</span>
+    <button id="cloud-toggle" class="header-btn" title="Toggle whether general-knowledge questions can reach the cloud">…</button>
     <button id="status-open" class="header-btn">📊 Status</button>
     <button id="memory-open" class="header-btn">🧠 Memory</button>
     <button id="recall-open" class="header-btn">🔍 Recall</button>
@@ -957,6 +962,51 @@ statusBackdrop.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !statusBackdrop.hidden) closeStatus();
 });
+
+// --- Cloud toggle ---
+const cloudToggle = document.getElementById("cloud-toggle");
+
+function renderCloudToggle(allowCloud) {
+  cloudToggle.textContent = allowCloud ? "☁️ Cloud: ON" : "🚫 Cloud: OFF";
+  cloudToggle.classList.toggle("off", !allowCloud);
+  cloudToggle.dataset.allowCloud = allowCloud ? "1" : "0";
+}
+
+async function loadCloudToggle() {
+  try {
+    const res = await fetch("/api/settings/cloud");
+    if (!res.ok) {
+      cloudToggle.textContent = "☁️ Cloud: ?";
+      return;
+    }
+    const data = await res.json();
+    renderCloudToggle(data.allow_cloud);
+  } catch (e) {
+    cloudToggle.textContent = "☁️ Cloud: ?";
+  }
+}
+
+cloudToggle.addEventListener("click", async () => {
+  const next = cloudToggle.dataset.allowCloud !== "1";
+  cloudToggle.disabled = true;
+  try {
+    const res = await fetch("/api/settings/cloud", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allow_cloud: next }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      renderCloudToggle(data.allow_cloud);
+    }
+  } catch (e) {
+    // leave the label as-is; user can retry the click
+  } finally {
+    cloudToggle.disabled = false;
+  }
+});
+
+loadCloudToggle();
 </script>
 </body>
 </html>
