@@ -61,8 +61,10 @@
     border-radius: 12px;
     line-height: 1.45;
     font-size: 14px;
-    white-space: pre-wrap;
     word-wrap: break-word;
+  }
+  .msg.user, .msg.error {
+    white-space: pre-wrap;
   }
   .msg.user {
     align-self: flex-end;
@@ -74,6 +76,36 @@
     background: var(--ai-bubble);
     border: 1px solid var(--border);
     border-bottom-left-radius: 3px;
+  }
+  .msg-body p { margin: 0 0 8px; }
+  .msg-body p:last-child { margin-bottom: 0; }
+  .msg-body ul, .msg-body ol { margin: 4px 0 8px 20px; padding: 0; }
+  .msg-body li { margin-bottom: 2px; }
+  .msg-body h1, .msg-body h2, .msg-body h3, .msg-body h4 {
+    margin: 10px 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .msg-body h1:first-child, .msg-body h2:first-child,
+  .msg-body h3:first-child, .msg-body h4:first-child { margin-top: 0; }
+  .msg-body code {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+  }
+  .msg-body pre {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    margin: 8px 0;
+  }
+  .msg-body pre code {
+    background: none;
+    padding: 0;
   }
   .msg.error {
     align-self: flex-start;
@@ -289,6 +321,101 @@ const sendEl = document.getElementById("send");
 const attachEl = document.getElementById("attach");
 const fileInputEl = document.getElementById("file-input");
 
+// Minimal, dependency-free markdown renderer. No CDN library on purpose —
+// ASTI's core UI shouldn't depend on internet access just to render text.
+// Covers what AI responses actually use: headers, bold/italic, inline code,
+// fenced code blocks, bullet/numbered lists, paragraphs. Not full CommonMark
+// (no tables, nested blockquotes, etc.) — add more as real output needs it.
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderInline(s) {
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
+  s = s.replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1<em>$2</em>");
+  return s;
+}
+
+function renderMarkdown(text) {
+  const escaped = escapeHtml(text);
+
+  // Pull fenced code blocks out first so nothing inside them gets touched
+  // by inline/list/header processing below.
+  const codeBlocks = [];
+  const withPlaceholders = escaped.replace(/```([\s\S]*?)```/g, (_, code) => {
+    codeBlocks.push(code.replace(/^\n/, "").replace(/\n$/, ""));
+    return "\u0000CODEBLOCK" + (codeBlocks.length - 1) + "\u0000";
+  });
+
+  const html = [];
+  let listType = null; // "ul" | "ol" | null
+  let para = [];
+
+  function flushPara() {
+    if (para.length) {
+      html.push("<p>" + renderInline(para.join(" ")) + "</p>");
+      para = [];
+    }
+  }
+  function closeList() {
+    if (listType) {
+      html.push("</" + listType + ">");
+      listType = null;
+    }
+  }
+
+  for (const rawLine of withPlaceholders.split("\n")) {
+    const line = rawLine.trim();
+
+    const codeBlockMatch = line.match(/^\u0000CODEBLOCK(\d+)\u0000$/);
+    if (codeBlockMatch) {
+      flushPara();
+      closeList();
+      html.push("<pre><code>" + codeBlocks[parseInt(codeBlockMatch[1], 10)] + "</code></pre>");
+      continue;
+    }
+
+    const headerMatch = line.match(/^(#{1,4})\s+(.*)$/);
+    if (headerMatch) {
+      flushPara();
+      closeList();
+      const level = headerMatch[1].length;
+      html.push(`<h${level}>` + renderInline(headerMatch[2]) + `</h${level}>`);
+      continue;
+    }
+
+    const bulletMatch = line.match(/^[-*]\s+(.*)$/);
+    const numberedMatch = line.match(/^\d+\.\s+(.*)$/);
+
+    if (bulletMatch) {
+      flushPara();
+      if (listType !== "ul") { closeList(); html.push("<ul>"); listType = "ul"; }
+      html.push("<li>" + renderInline(bulletMatch[1]) + "</li>");
+      continue;
+    }
+    if (numberedMatch) {
+      flushPara();
+      if (listType !== "ol") { closeList(); html.push("<ol>"); listType = "ol"; }
+      html.push("<li>" + renderInline(numberedMatch[1]) + "</li>");
+      continue;
+    }
+
+    if (line === "") {
+      flushPara();
+      closeList();
+      continue;
+    }
+
+    para.push(line);
+  }
+  flushPara();
+  closeList();
+
+  return html.join("\n");
+}
+
 function addMessage(role, text, intent) {
   const div = document.createElement("div");
   div.className = "msg " + role;
@@ -298,7 +425,8 @@ function addMessage(role, text, intent) {
     tag.textContent = intent;
     div.appendChild(tag);
     const body = document.createElement("div");
-    body.textContent = text;
+    body.className = "msg-body";
+    body.innerHTML = renderMarkdown(text);
     div.appendChild(body);
   } else {
     div.textContent = text;
