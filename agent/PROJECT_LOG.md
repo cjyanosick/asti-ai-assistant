@@ -1297,3 +1297,46 @@ future smaller/different local model) are evaluated: check not just
 answer quality, but whether the model can be trusted to flag its own
 uncertainty, and don't assume a system-prompt instruction fixes that —
 this one didn't.
+
+## Milestone: Conversation history loads in the GUI on page open
+
+### What Carter asked for
+"I want it so that the chat overall is searchable as well. If I say
+something in the chat cloud or not, I want to be able to reference it."
+
+### What was already true, verified before building anything
+Every turn — cloud-answered or local, any intent — was already saved and
+embedded identically via `process_turn()`'s unconditional `add_memory()`
+call, so it was already fully searchable through Recall regardless of
+which path answered it. Confirmed with real data: queried semantically
+for cloud-adjacent turns and got correct, high-similarity matches.
+
+### The actual gap
+The GUI chat window started completely empty on every page load, even
+though `memory.json` had the real history. The only way to "reference"
+something said earlier was opening Recall and typing a search query —
+not scrolling back and reading, like a normal chat app.
+
+### What changed
+- New `GET /api/history` returns the last 50 turns as plain `{user, ai}`
+  pairs. Capped, not the full history, to keep the page snappy as
+  `memory.json` keeps growing — Recall stays the tool for finding
+  something specific/older by topic, this is just "what did we just say."
+- Frontend `loadHistory()` runs on page open, renders each turn through
+  the same `addMessage()`/markdown pipeline as live messages, with a
+  divider ("Earlier conversation loaded above") marking where loaded
+  history ends and the live session begins.
+- Small refactor to `addMessage()`: markdown rendering now applies to
+  every `role="ai"` message, not just ones with an intent tag — historical
+  turns have no stored intent (never persisted per-turn) but should still
+  render the same way live ones do.
+
+### Verification
+`GET /api/history` returns real data in the correct shape. HTML validity
+and structural balance checks pass. Full server check confirms nothing
+else broke.
+
+### Result
+The GUI now reads as a continuous conversation on open, and the
+"searchable regardless of cloud or local" half of the request was already
+true and is now confirmed/documented rather than assumed.
