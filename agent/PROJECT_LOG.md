@@ -1163,3 +1163,51 @@ toggle, which needs the `ALLOW_CLOUD` live-reload fix first (currently a
 load-once constant from `.env`; a GUI toggle needs it read fresh per
 call). After that: the general layout pass, now that everything is
 actually in the GUI to evaluate.
+
+## Removal: tasks feature torn out entirely
+
+### Why
+Carter flagged twice, across two separate messages, that the tasks
+feature isn't actually useful for what he's building — a product for
+privacy-sensitive professionals and ordinary consumers, not a to-do app.
+Chose full removal over leaving it in as unused weight.
+
+### What was removed
+- `router.py`: the `task`/`task_complete` intents and their classifier
+  examples — `INTENTS` is back to the original three (`chat`, `recall`,
+  `general_knowledge`).
+- `llm.py`: `TASK_SCHEMA`, `extract_task()`, `_match_task()`, the
+  `task`/`task_complete` branches in `ask_llm()`, the task-list addition
+  to `recall` mode's context, the task-skip condition in `process_turn()`
+  (`extract_memory()` now runs unconditionally again, as it did before
+  tasks existed), the `/tasks`/`/done` CLI commands, the tasks line in
+  `build_diagnostics_report()`.
+- `app.py`: the `tasks.py` import and all three `/api/tasks*` routes.
+- `static/index.html`: the Tasks header button, its modal, its CSS, ~110
+  lines of its JS.
+- `tasks.py` deleted entirely. `tasks.json` deleted — Carter's real data
+  (2 tasks), flagged before removal, orphaned once nothing referenced it.
+- `.gitignore`: removed the now-unnecessary `agent/tasks.json` entry.
+
+### Verification
+Syntax and HTML validity clean. Router confirmed to have zero task
+references. Full server check: index, `/api/status`, `/api/memory` all
+200; `/api/tasks` correctly 404s now that the route is gone; `/api/status`
+report no longer mentions tasks.
+
+### Found and flagged, not fixed
+Removing two intents from the classifier prompt shifted its decision
+boundary — "what is my savings goal" and "what are my preferences" now
+land in `chat` instead of `recall` (other phrasings of the same question
+still correctly hit `recall`). Verified this doesn't break correctness:
+`chat` mode still has `personal_memory` access and answers right, just
+more conversationally. Not chasing this with more prompt tuning — same
+tolerance already extended to other known router fuzziness (e.g. "my
+favorite color is teal" → `recall`).
+
+### Result
+Tasks is fully gone, not just hidden. Roadmap #3 (originally "tasks /
+projects / notes / documents") now has nothing built under it — if
+projects/notes/documents are ever wanted, they start from scratch, and
+shouldn't be assumed wanted just because they were adjacent to tasks in
+the original roadmap bullet.
