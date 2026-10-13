@@ -834,3 +834,29 @@ ASTI has a working browser-based chat interface for the first time. The
 CLI (`llm.py`) and the GUI (`app.py`) now share one pipeline
 (`process_turn()`), so every future fix to the conversation logic applies
 to both automatically.
+
+## Milestone: Semantic recall search in the GUI
+
+### What changed
+- New `POST /api/recall` in `app.py`, reusing the same `semantic_search()`
+  + `generate_embedding()` the CLI's `/recall` command already uses — no
+  new retrieval logic, just a route around the existing function.
+- Frontend: a "Recall" button in the header opens a modal — search box,
+  results list showing similarity score, the stored user message, and
+  ASTI's original response. An overlay, doesn't touch the chat layout.
+  Empty state explains only turns saved since semantic recall shipped are
+  searchable.
+
+### Verification
+Tested against real data (accumulated from Carter's own GUI usage since
+the chat slice shipped): query "savings goal" correctly ranked the exact
+stored match highest (0.806 similarity) with descending scores for less
+relevant turns. Empty query correctly 400s. Read-only endpoint, nothing
+to restore after testing.
+
+### Result
+Two of the two things originally asked for a GUI ("recall and cloud
+choice") — recall is done. Cloud toggle is next, which needs the
+`ALLOW_CLOUD` live-reload architecture decision first (currently a
+load-once constant from `.env`; a GUI toggle needs it read fresh per
+call instead).
