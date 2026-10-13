@@ -135,6 +135,23 @@
   #send:not(:disabled):hover {
     filter: brightness(1.08);
   }
+  #attach {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    width: 40px;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #attach:hover {
+    border-color: var(--accent);
+  }
+  #attach:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
   .header-btn {
     margin-left: auto;
     background: transparent;
@@ -244,6 +261,8 @@
   </header>
   <div id="messages"></div>
   <div id="composer">
+    <button id="attach" title="Attach a file">📎</button>
+    <input id="file-input" type="file" hidden>
     <textarea id="input" rows="1" placeholder="Message ASTI..."></textarea>
     <button id="send">Send</button>
   </div>
@@ -267,6 +286,8 @@
 const messagesEl = document.getElementById("messages");
 const inputEl = document.getElementById("input");
 const sendEl = document.getElementById("send");
+const attachEl = document.getElementById("attach");
+const fileInputEl = document.getElementById("file-input");
 
 function addMessage(role, text, intent) {
   const div = document.createElement("div");
@@ -345,6 +366,44 @@ inputEl.addEventListener("keydown", (e) => {
   }
 });
 sendEl.addEventListener("click", sendMessage);
+
+// --- File upload (GUI entry point for file tools — no persistence yet,
+// each upload is a one-shot summary, same as the CLI's /read) ---
+attachEl.addEventListener("click", () => fileInputEl.click());
+
+fileInputEl.addEventListener("change", async () => {
+  const file = fileInputEl.files[0];
+  fileInputEl.value = ""; // allow re-selecting the same file later
+  if (!file) return;
+
+  addMessage("user", "📎 " + file.name);
+  attachEl.disabled = true;
+  sendEl.disabled = true;
+  const thinking = addThinking();
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch("/api/read", { method: "POST", body: formData });
+    thinking.remove();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      addMessage("error", "Error: " + (err.error || res.statusText));
+      return;
+    }
+
+    const data = await res.json();
+    addMessage("ai", data.summary, "file");
+  } catch (e) {
+    thinking.remove();
+    addMessage("error", "Could not reach ASTI — is the server running?");
+  } finally {
+    attachEl.disabled = false;
+    sendEl.disabled = false;
+  }
+});
 
 inputEl.focus();
 

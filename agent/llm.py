@@ -362,10 +362,30 @@ def _file_summary_system_prompt():
     )
 
 
-def read_file_summary(path):
-    # File tools, first slice. Always local (generate_response, never
+def _summarize_file_content(label, content):
+    # Shared core for both file-read paths (CLI path-based, GUI upload
+    # bytes-based) so there's one summarization implementation, not two
+    # that could drift apart. Always local (generate_response, never
     # generate_cloud_response) — file content could be anything, so there's
-    # no cloud option here yet, unlike general_knowledge. Plain open(), not
+    # no cloud option here yet, unlike general_knowledge.
+    truncated = len(content) > MAX_FILE_READ_CHARS
+    if truncated:
+        content = content[:MAX_FILE_READ_CHARS]
+
+    user_prompt = f"File: {label}\n\nContent:\n{content}"
+    summary = generate_response(user_prompt, system=_file_summary_system_prompt())
+
+    if truncated:
+        summary += (
+            f"\n\n(This file is long — only the first {MAX_FILE_READ_CHARS} "
+            f"characters were read.)"
+        )
+
+    return summary
+
+
+def read_file_summary(path):
+    # File tools, first slice (CLI entry point). Plain open(), not
     # storage.py — that boundary is for ASTI's own encrypted data stores,
     # not arbitrary external files the user points it at.
     expanded = os.path.expanduser(path)
@@ -387,20 +407,23 @@ def read_file_summary(path):
     except PermissionError:
         return f"Permission denied reading {path}"
 
-    truncated = len(content) > MAX_FILE_READ_CHARS
-    if truncated:
-        content = content[:MAX_FILE_READ_CHARS]
+    return _summarize_file_content(path, content)
 
-    user_prompt = f"File: {path}\n\nContent:\n{content}"
-    summary = generate_response(user_prompt, system=_file_summary_system_prompt())
 
-    if truncated:
-        summary += (
-            f"\n\n(This file is long — only the first {MAX_FILE_READ_CHARS} "
-            f"characters were read.)"
+def summarize_uploaded_file(filename, raw_bytes):
+    # File tools (GUI entry point, upload via app.py's /api/read). No
+    # persistence yet — same as /read, this is a one-shot summary, not
+    # saved to conversation history or personal memory. Persistence is a
+    # deliberately separate future slice.
+    try:
+        content = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return (
+            f"{filename} doesn't look like a plain text file — binary and "
+            f"PDF files aren't supported yet"
         )
 
-    return summary
+    return _summarize_file_content(filename, content)
 
 
 def build_diagnostics_report():
