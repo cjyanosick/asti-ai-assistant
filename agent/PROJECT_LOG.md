@@ -1211,3 +1211,36 @@ projects / notes / documents") now has nothing built under it — if
 projects/notes/documents are ever wanted, they start from scratch, and
 shouldn't be assumed wanted just because they were adjacent to tasks in
 the original roadmap bullet.
+
+## Milestone: Live cloud toggle in the GUI (polish pass, final panel)
+
+### What changed
+- **Architecture fix first**: `config.ALLOW_CLOUD` was a load-once
+  constant read from the environment at import time — a GUI toggle could
+  never affect an already-running process, only the next restart.
+  Renamed to `ALLOW_CLOUD_DEFAULT` (env-sourced fallback only). New
+  `cloud_setting.py` (mirrors `outbound_log.py`'s pattern):
+  `is_cloud_allowed()` reads fresh from a small file via `storage.py` on
+  every call, so a toggle takes effect on the very next message, no
+  restart. Had to live in a new module, not `config.py` itself —
+  `config.py` importing `storage.py` would be circular, since
+  `storage.py` already imports `config.py` for `ENCRYPTION_KEY`.
+- `llm.py` updated to call `is_cloud_allowed()` at all three call sites
+  that used the old constant.
+- New `GET`/`POST /api/settings/cloud` in `app.py`. Frontend: a single
+  header button (no modal needed for one boolean) — "Cloud: ON"/"Cloud:
+  OFF", click to flip, red-tinted when off.
+
+### Verification
+The critical test was proving live-reload actually works: toggled off
+and back on within a single running Python process (no restart) and
+confirmed `ask_llm(mode="general_knowledge")` respected each change
+immediately, including the privacy notice on the local fallback. Backend
+endpoints curl-verified. HTML validity and structural balance checks
+pass. Full server check confirms nothing else broke.
+
+### Result
+This closes out the GUI polish pass's planned panels: chat, recall
+search, file upload, memory vault, diagnostics, and cloud toggle (tasks
+shipped then removed per Carter's call). Remaining: the general layout
+pass, now that everything is actually in the GUI to evaluate.
