@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory
 
 from llm import process_turn
+from memory import semantic_search
+from model_provider import generate_embedding
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -21,6 +23,24 @@ def chat():
     intent, response = process_turn(message)
 
     return jsonify({"intent": intent, "response": response})
+
+
+@app.route("/api/recall", methods=["POST"])
+def recall():
+    data = request.get_json(silent=True) or {}
+    query = (data.get("query") or "").strip()
+
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+
+    results = semantic_search(generate_embedding(query), top_k=5)
+
+    return jsonify({
+        "results": [
+            {"score": score, "user": item["user"], "ai": item["ai"]}
+            for score, item in results
+        ]
+    })
 
 
 if __name__ == "__main__":
