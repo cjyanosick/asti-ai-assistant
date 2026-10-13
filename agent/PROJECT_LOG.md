@@ -1381,3 +1381,47 @@ ambiguous short message can get mismatched to the wrong existing key —
 not something to fix inside this feature's scope, but worth a dedicated
 look: `reconcile_key()` has no sanity check on whether a bare, low-context
 message should be eligible to overwrite an existing value at all.
+
+## Fix: minimum-content gate on personal memory extraction
+
+### What changed
+`is_noninformative()` in `llm.py` now also returns `True` for any message
+that reduces to a single token (after stripping trailing punctuation) —
+`"2026"`, `"20"`, `"pizza"` with nothing else said, etc. This runs before
+`extract_memory()`'s model call, so `should_remember` is forced `False`
+for these inputs and `reconcile_key()` is never reached at all — it can't
+mismatch a message onto an existing key if the message is never offered
+to it in the first place.
+
+### Why this shape, not a fix inside `reconcile_key()` itself
+The actual root cause traced in the prior milestone: a bare `"2026"` had
+no interpretable subject, yet `extract_memory()`'s model call still
+produced a confident (hallucinated) subject/attribute/value for it, and
+`reconcile_key()` then trusted the model's enum-constrained key choice
+completely. Gating upstream, on message content, is simpler and more
+reliable than trying to make `reconcile_key()` itself second-guess a
+key choice it has no independent way to verify — consistent with the
+project's "let the model interpret meaning, let deterministic Python
+enforce structure" rule in `CLAUDE.md`.
+
+### Trade-off, accepted deliberately
+A genuinely informative one-word answer (e.g. "Pizza." answering "what's
+your favorite food?") will now also be dropped — the pipeline has no
+dialogue-state tracking to tell that case apart from a stray bare token.
+This is the same known limitation already documented for bare pronoun
+follow-ups ("instead make it 50k") — explicit phrasing keeps working,
+context-free fragments don't. Accepted trade: stopping real data
+corruption outweighs losing some one-word answers, especially since
+explicit phrasing already works fine for the audience this is being
+built for.
+
+### Verification
+Tested `is_noninformative()` directly (pure function, no model calls, no
+file I/O) against 9 cases — the real `"2026"` bug case, several question/
+greeting/multi-word-fact cases, and more single-token cases. All matched
+expected behavior. No real data touched; nothing needed backing up.
+
+### Status
+The existing corrupted `goals.savings_target` value (`"2026"`) is left
+as-is for now, per Carter's call — this fixes the mechanism going
+forward, not the already-corrupted stored value.

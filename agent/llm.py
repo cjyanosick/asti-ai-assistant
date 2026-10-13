@@ -154,9 +154,25 @@ def is_noninformative(message):
     if stripped in _SMALL_TALK:
         return True
 
-    return stripped.startswith(
+    if stripped.startswith(
         ("how's it going", "hows it going", "what's up", "whats up", "how are you")
-    )
+    ):
+        return True
+
+    # Minimum-content gate (bug found 10/13, see CLAUDE.md): a bare single
+    # token — especially a bare number like "2026" sent mid-conversation
+    # about something unrelated — has no interpretable subject on its own.
+    # extract_memory() would still hallucinate a subject/attribute for it,
+    # and reconcile_key() would then trust the model's enum-constrained
+    # guess completely, which is exactly how a stray "2026" silently
+    # overwrote a real goals.savings_target value in the wild. Blocking
+    # should_remember here, before extraction even runs, means
+    # reconcile_key() is never offered a chance to match a context-free
+    # message onto an existing key at all.
+    if len(stripped.split()) <= 1:
+        return True
+
+    return False
 
 
 def reconcile_key(prompt, category, candidate_key):
