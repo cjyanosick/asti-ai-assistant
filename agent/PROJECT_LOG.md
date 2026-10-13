@@ -893,3 +893,33 @@ Both pieces of "file tools" now exist in the GUI the same way they do in
 the CLI — upload instead of typing a path, same underlying summarization.
 Persistence (saving file reads to conversation history / personal memory)
 is the next slice.
+
+## Milestone: PDF and .docx support
+
+### What changed
+- New `_extract_text(filename, raw_bytes)` in `llm.py` dispatches by
+  extension: `.pdf` via `pypdf` (per-page text joined; clean error if no
+  text is extractable — likely scanned/image-only, OCR not supported),
+  `.docx` via `python-docx` (paragraph text joined), `.doc` gets an
+  explicit "not supported yet, only .docx" message (old binary Word
+  format, no good pure-Python library), everything else falls back to
+  UTF-8 text decoding as before.
+- Both `read_file_summary()` (CLI) and `summarize_uploaded_file()` (GUI)
+  now read raw bytes and share this one dispatcher — PDF/docx support
+  landed in both entry points at once.
+- Added `pypdf` and `python-docx` to `requirements.txt`.
+
+### Verification
+Tested against real files — a PDF generated via macOS's `cupsfilter`, a
+`.docx` via `python-docx` — each containing a distinct marker value to
+confirm genuine extraction, not a stub. Both formats summarize correctly
+through the CLI path and the GUI upload path. A fake `.doc` file gives
+the correct not-supported message instead of crashing. Plain text still
+works unchanged. `memory.json` turn count unchanged (69 before and after)
+across all GUI upload tests — still fully stateless.
+
+### Result
+File reading now handles the three formats people actually attach day to
+day (text, PDF, Word) in both the CLI and GUI. Ready for the persistence
+slice — nothing about how files get summarized needs to change for that,
+only whether the result gets saved.
