@@ -127,6 +127,17 @@
     font-size: 13px;
     padding: 10px 14px;
   }
+  .history-divider {
+    align-self: center;
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 4px 0 10px;
+    border-bottom: 1px solid var(--border);
+    width: 100%;
+    text-align: center;
+  }
   #composer {
     border-top: 1px solid var(--border);
     padding: 14px 20px;
@@ -613,11 +624,16 @@ function renderMarkdown(text) {
 function addMessage(role, text, intent) {
   const div = document.createElement("div");
   div.className = "msg " + role;
-  if (intent) {
-    const tag = document.createElement("div");
-    tag.className = "intent-tag";
-    tag.textContent = intent;
-    div.appendChild(tag);
+  if (role === "ai") {
+    // Markdown rendering applies to every AI message, not just ones with
+    // a known intent — loaded history has no stored intent (never
+    // persisted per-turn) but should still render the same way.
+    if (intent) {
+      const tag = document.createElement("div");
+      tag.className = "intent-tag";
+      tag.textContent = intent;
+      div.appendChild(tag);
+    }
     const body = document.createElement("div");
     body.className = "msg-body";
     body.innerHTML = renderMarkdown(text);
@@ -726,6 +742,35 @@ fileInputEl.addEventListener("change", async () => {
     sendEl.disabled = false;
   }
 });
+
+// --- Load recent conversation history on page open, so chat reads as a
+// continuous conversation instead of starting empty every time. Every
+// turn (cloud-answered or local) is already saved and searchable via
+// Recall regardless of this — this is just "what did we just say,"
+// visible without having to search for it.
+async function loadHistory() {
+  try {
+    const res = await fetch("/api/history");
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.turns.length) return;
+
+    for (const turn of data.turns) {
+      addMessage("user", turn.user);
+      addMessage("ai", turn.ai);
+    }
+
+    const divider = document.createElement("div");
+    divider.className = "history-divider";
+    divider.textContent = "Earlier conversation loaded above";
+    messagesEl.appendChild(divider);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  } catch (e) {
+    // No history shown is an acceptable failure mode — chat still works.
+  }
+}
+
+loadHistory();
 
 inputEl.focus();
 

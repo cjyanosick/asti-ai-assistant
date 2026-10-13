@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from llm import process_turn, summarize_uploaded_file, ALLOWED_MEMORY_CATEGORIES, build_diagnostics_report
 from memory import (
     semantic_search,
+    load_memory,
     load_personal_memory,
     update_personal_memory,
     forget_personal_memory,
@@ -34,6 +35,25 @@ def chat():
     intent, response = process_turn(message)
 
     return jsonify({"intent": intent, "response": response})
+
+
+@app.route("/api/history", methods=["GET"])
+def get_history():
+    # Loaded once on page open so the chat window reads like a continuous
+    # conversation instead of starting empty every time, even though
+    # every turn (cloud-answered or local) is already saved and
+    # searchable via /api/recall regardless. Capped, not the full history
+    # — keeps the page snappy as memory.json grows; Recall is the tool
+    # for finding something specific/older by topic, this is just "what
+    # did we just say."
+    history = load_memory()[-50:]
+
+    return jsonify({
+        "turns": [
+            {"user": item["user"], "ai": item["ai"]}
+            for item in history
+        ]
+    })
 
 
 @app.route("/api/recall", methods=["POST"])
