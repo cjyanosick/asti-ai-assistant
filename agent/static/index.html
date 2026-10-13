@@ -197,9 +197,48 @@
   .header-btn:hover {
     border-color: var(--accent);
   }
-  #cloud-toggle.off {
-    border-color: #5c2e30;
-    color: #f0a8a8;
+  .switch-group {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .switch-label {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .switch {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .switch.on {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .switch:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s ease;
+  }
+  .switch.on .switch-thumb {
+    transform: translateX(18px);
   }
   .modal-backdrop {
     position: fixed;
@@ -395,7 +434,13 @@
   <header>
     <h1>ASTI</h1>
     <span>local-first personal assistant</span>
-    <button id="cloud-toggle" class="header-btn" title="Toggle whether general-knowledge questions can reach the cloud">…</button>
+    <div class="switch-group">
+      <span id="cloud-switch-label" class="switch-label">Cloud</span>
+      <button id="cloud-toggle" class="switch" role="switch" aria-checked="false"
+        title="Toggle whether general-knowledge questions can reach the cloud">
+        <span class="switch-thumb"></span>
+      </button>
+    </div>
     <button id="status-open" class="header-btn">📊 Status</button>
     <button id="memory-open" class="header-btn">🧠 Memory</button>
     <button id="recall-open" class="header-btn">🔍 Recall</button>
@@ -963,26 +1008,33 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !statusBackdrop.hidden) closeStatus();
 });
 
-// --- Cloud toggle ---
+// --- Cloud toggle --- a real sliding switch, not a text-label button: a
+// button reading "OFF" is ambiguous (is that the current state, or an
+// instruction to turn it off?). A switch's position IS the state.
 const cloudToggle = document.getElementById("cloud-toggle");
+const cloudSwitchLabel = document.getElementById("cloud-switch-label");
 
 function renderCloudToggle(allowCloud) {
-  cloudToggle.textContent = allowCloud ? "☁️ Cloud: ON" : "🚫 Cloud: OFF";
-  cloudToggle.classList.toggle("off", !allowCloud);
+  cloudToggle.classList.toggle("on", allowCloud);
+  cloudToggle.setAttribute("aria-checked", allowCloud ? "true" : "false");
   cloudToggle.dataset.allowCloud = allowCloud ? "1" : "0";
+  cloudToggle.title = allowCloud
+    ? "Cloud is ON — general-knowledge questions may reach Claude's API"
+    : "Cloud is OFF — everything stays local";
+  cloudSwitchLabel.textContent = "Cloud: " + (allowCloud ? "ON" : "OFF");
 }
 
 async function loadCloudToggle() {
   try {
     const res = await fetch("/api/settings/cloud");
     if (!res.ok) {
-      cloudToggle.textContent = "☁️ Cloud: ?";
+      cloudSwitchLabel.textContent = "Cloud: ?";
       return;
     }
     const data = await res.json();
     renderCloudToggle(data.allow_cloud);
   } catch (e) {
-    cloudToggle.textContent = "☁️ Cloud: ?";
+    cloudSwitchLabel.textContent = "Cloud: ?";
   }
 }
 
