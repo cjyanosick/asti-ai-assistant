@@ -342,32 +342,6 @@
     font-size: 13px;
     margin-bottom: 10px;
   }
-  .task-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    margin-bottom: 6px;
-    font-size: 13px;
-  }
-  .task-row .task-text {
-    flex: 1;
-    overflow-wrap: anywhere;
-  }
-  .task-row.done .task-text {
-    text-decoration: line-through;
-    color: var(--text-dim);
-  }
-  .task-row input[type="checkbox"] {
-    flex-shrink: 0;
-    accent-color: var(--accent);
-    width: 15px;
-    height: 15px;
-    cursor: pointer;
-  }
   .status-report {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -418,7 +392,6 @@
     <h1>ASTI</h1>
     <span>local-first personal assistant</span>
     <button id="status-open" class="header-btn">📊 Status</button>
-    <button id="tasks-open" class="header-btn">✅ Tasks</button>
     <button id="memory-open" class="header-btn">🧠 Memory</button>
     <button id="recall-open" class="header-btn">🔍 Recall</button>
   </header>
@@ -441,21 +414,6 @@
       <button id="status-refresh">Refresh</button>
     </div>
     <pre id="status-report" class="status-report">Loading…</pre>
-  </div>
-</div>
-
-<div id="tasks-backdrop" class="modal-backdrop" hidden>
-  <div class="modal">
-    <div class="modal-header">
-      <h2>Tasks</h2>
-      <button id="tasks-close" class="modal-close">&times;</button>
-    </div>
-    <div id="tasks-list" style="overflow-y: auto;"></div>
-    <div class="form-row">
-      <input id="tasks-form-text" class="key" type="text" placeholder="Add a task...">
-      <button id="tasks-form-add">Add</button>
-    </div>
-    <div id="tasks-form-status" class="form-status"></div>
   </div>
 </div>
 
@@ -958,120 +916,6 @@ memoryExportBtn.addEventListener("click", async () => {
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !memoryBackdrop.hidden) closeMemory();
-});
-
-// --- Tasks modal ---
-const tasksBackdrop = document.getElementById("tasks-backdrop");
-const tasksOpen = document.getElementById("tasks-open");
-const tasksClose = document.getElementById("tasks-close");
-const tasksList = document.getElementById("tasks-list");
-const tasksFormText = document.getElementById("tasks-form-text");
-const tasksFormAdd = document.getElementById("tasks-form-add");
-const tasksFormStatus = document.getElementById("tasks-form-status");
-
-async function completeTaskEntry(id) {
-  try {
-    const res = await fetch("/api/tasks/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    if (res.ok) loadTasksList();
-  } catch (e) {
-    // ignore — list just won't refresh
-  }
-}
-
-async function loadTasksList() {
-  tasksList.innerHTML = '<div class="memory-empty">Loading…</div>';
-
-  try {
-    const res = await fetch("/api/tasks");
-    if (!res.ok) {
-      tasksList.innerHTML = '<div class="memory-empty">Could not load tasks.</div>';
-      return;
-    }
-
-    const tasks = await res.json();
-    tasksList.innerHTML = "";
-
-    if (!tasks.length) {
-      tasksList.innerHTML = '<div class="memory-empty">No tasks yet.</div>';
-      return;
-    }
-
-    for (const task of tasks) {
-      const row = document.createElement("div");
-      row.className = "task-row" + (task.done ? " done" : "");
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = task.done;
-      checkbox.disabled = task.done;
-      checkbox.addEventListener("change", () => completeTaskEntry(task.id));
-      row.appendChild(checkbox);
-
-      const text = document.createElement("div");
-      text.className = "task-text";
-      text.textContent = task.text;
-      row.appendChild(text);
-
-      tasksList.appendChild(row);
-    }
-  } catch (e) {
-    tasksList.innerHTML = '<div class="memory-empty">Could not reach ASTI.</div>';
-  }
-}
-
-function openTasks() {
-  tasksBackdrop.hidden = false;
-  tasksFormStatus.textContent = "";
-  loadTasksList();
-}
-function closeTasks() {
-  tasksBackdrop.hidden = true;
-}
-
-tasksOpen.addEventListener("click", openTasks);
-tasksClose.addEventListener("click", closeTasks);
-tasksBackdrop.addEventListener("click", (e) => {
-  if (e.target === tasksBackdrop) closeTasks();
-});
-
-async function addTaskEntry() {
-  const text = tasksFormText.value.trim();
-  if (!text) return;
-
-  tasksFormStatus.textContent = "Adding…";
-  try {
-    const res = await fetch("/api/tasks/add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      tasksFormStatus.textContent = "Error: " + (err.error || res.statusText);
-      return;
-    }
-    tasksFormText.value = "";
-    tasksFormStatus.textContent = "";
-    loadTasksList();
-  } catch (e) {
-    tasksFormStatus.textContent = "Could not reach ASTI.";
-  }
-}
-
-tasksFormAdd.addEventListener("click", addTaskEntry);
-tasksFormText.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    addTaskEntry();
-  }
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !tasksBackdrop.hidden) closeTasks();
 });
 
 // --- Diagnostics modal ---
