@@ -16,10 +16,13 @@ from config import (
     MAX_FILE_READ_CHARS,
 )
 
+import io
 import json
 import os
 import requests
 from datetime import date
+from pypdf import PdfReader
+from docx import Document
 
 MEMORY_SCHEMA = {
     "type": "object",
@@ -362,6 +365,50 @@ def _file_summary_system_prompt():
     )
 
 
+def _extract_text(filename, raw_bytes):
+    # Dispatches by extension, returns (content, error) — exactly one is
+    # None. Shared by both file-read entry points so PDF/docx support
+    # lands in both at once.
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext == ".pdf":
+        try:
+            reader = PdfReader(io.BytesIO(raw_bytes))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception:
+            return None, (
+                f"Could not read {filename} as a PDF — it may be corrupted"
+            )
+        if not text.strip():
+            return None, (
+                f"{filename} has no extractable text — it may be a "
+                f"scanned/image-only PDF (OCR not supported yet)"
+            )
+        return text, None
+
+    if ext == ".docx":
+        try:
+            doc = Document(io.BytesIO(raw_bytes))
+            text = "\n".join(p.text for p in doc.paragraphs)
+        except Exception:
+            return None, f"Could not read {filename} as a .docx file — it may be corrupted"
+        return text, None
+
+    if ext == ".doc":
+        return None, (
+            f"{filename} is an old .doc file (pre-2007 Word format) — not "
+            f"supported yet, only .docx"
+        )
+
+    try:
+        return raw_bytes.decode("utf-8"), None
+    except UnicodeDecodeError:
+        return None, (
+            f"{filename} doesn't look like a plain text file, PDF, or "
+            f".docx — unsupported format"
+        )
+
+
 def _summarize_file_content(label, content):
     # Shared core for both file-read paths (CLI path-based, GUI upload
     # bytes-based) so there's one summarization implementation, not two
@@ -397,15 +444,14 @@ def read_file_summary(path):
         return f"{path} is a directory, not a file"
 
     try:
-        with open(expanded, "r", encoding="utf-8") as f:
-            content = f.read()
-    except UnicodeDecodeError:
-        return (
-            f"{path} doesn't look like a plain text file — binary and PDF "
-            f"files aren't supported yet"
-        )
+        with open(expanded, "rb") as f:
+            raw_bytes = f.read()
     except PermissionError:
         return f"Permission denied reading {path}"
+
+    content, error = _extract_text(os.path.basename(path), raw_bytes)
+    if error:
+        return error
 
     return _summarize_file_content(path, content)
 
@@ -415,13 +461,9 @@ def summarize_uploaded_file(filename, raw_bytes):
     # persistence yet — same as /read, this is a one-shot summary, not
     # saved to conversation history or personal memory. Persistence is a
     # deliberately separate future slice.
-    try:
-        content = raw_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        return (
-            f"{filename} doesn't look like a plain text file — binary and "
-            f"PDF files aren't supported yet"
-        )
+    content, error = _extract_text(filename, raw_bytes)
+    if error:
+        return error
 
     return _summarize_file_content(filename, content)
 
