@@ -428,6 +428,21 @@ def _summarize_file_content(label, content):
             f"characters were read.)"
         )
 
+    # Persistence (file tools, second slice): save the read into
+    # conversation history, same path every chat turn already uses — gets
+    # recent-turn continuity and /recall searchability for free, no new
+    # injection logic. Deliberately NOT running extract_memory() against
+    # this — that pipeline is tuned for short conversational statements,
+    # not document summaries, and personal_memory is too trusted a store
+    # to risk on an untested extraction path. Best-effort embedding, same
+    # pattern as process_turn: still save the turn if embedding fails.
+    turn_user = f"[uploaded file: {label}]"
+    try:
+        embedding = generate_embedding(f"{turn_user}\n{summary}")
+    except requests.RequestException:
+        embedding = None
+    add_memory(turn_user, summary, embedding=embedding)
+
     return summary
 
 
