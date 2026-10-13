@@ -1001,3 +1001,41 @@ few turns once it's in context) is a real, reproducible local-model
 behavior worth remembering if other router/context bugs surface — the
 fallout isn't just the one bad answer, it's a few turns of degraded
 answers after it until the bad turn ages out of the recent-3 window.
+
+## Milestone: GUI polish pass begins — markdown rendering
+
+### Context
+Carter is about to start using ASTI himself day to day and wants the GUI
+fully polished first, both visually and for feature completeness, so
+daily use surfaces backend issues through a usable interface rather than
+the CLI. Agreed order: markdown rendering → memory vault panel → tasks
+panel → diagnostics panel → cloud toggle (needs the `ALLOW_CLOUD`
+live-reload fix first) → general layout pass once everything's in the GUI.
+
+### What changed (step 1 of the polish pass)
+- Every AI response was showing literal `**bold**`/`*italic*`/`# headers`
+  as raw characters — the single most visible "feels unpolished" issue,
+  since most AI output this session used markdown-shaped formatting.
+- New `renderMarkdown()`/`renderInline()` in `static/index.html`: a
+  small, dependency-free markdown-to-HTML renderer (headers, bold/
+  italic, inline code, fenced code blocks, bullet/numbered lists — not
+  full CommonMark, just what AI responses actually use). No CDN library
+  on purpose — core UI shouldn't depend on internet access just to
+  render text. HTML-escapes input before any markdown transformation.
+- Moved `white-space: pre-wrap` off the base `.msg` class onto
+  `.msg.user`/`.msg.error` specifically — needed for plain-text bubbles,
+  but was adding ugly gaps once AI responses became real block elements.
+- Recall search results panel intentionally left as plain text —
+  secondary utility view, keeping this step scoped to the main chat
+  surface.
+
+### Verification
+No browser automation available this session, so ported the renderer to
+Python and tested against realistic AI-response-shaped content — all
+render correctly. Verified an XSS attempt (`<script>` in response text)
+is properly escaped, never executed. Full end-to-end server check
+confirms nothing else broke. Final visual check is Carter's, in his own
+browser, since that's the authoritative test for a UI change.
+
+### Result
+First step of the GUI polish pass done. Next: memory vault panel.
