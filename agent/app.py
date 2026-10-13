@@ -9,6 +9,7 @@ from memory import (
     export_personal_memory,
 )
 from model_provider import generate_embedding
+from cloud_setting import is_cloud_allowed, set_cloud_allowed
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 # Basic safety net against an accidental huge upload — not a hard
@@ -110,6 +111,23 @@ def forget_memory():
 def export_memory():
     filename = export_personal_memory()
     return jsonify({"filename": filename})
+
+
+@app.route("/api/settings/cloud", methods=["GET"])
+def get_cloud_setting():
+    return jsonify({"allow_cloud": is_cloud_allowed()})
+
+
+@app.route("/api/settings/cloud", methods=["POST"])
+def set_cloud_setting():
+    data = request.get_json(silent=True) or {}
+    allow_cloud = data.get("allow_cloud")
+
+    if not isinstance(allow_cloud, bool):
+        return jsonify({"error": "allow_cloud (boolean) is required"}), 400
+
+    set_cloud_allowed(allow_cloud)
+    return jsonify({"allow_cloud": is_cloud_allowed()})
 
 
 @app.route("/api/status", methods=["GET"])

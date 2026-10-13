@@ -12,6 +12,7 @@ agent/memory.txt
 agent/memory_backup.py
 agent/memory_export_*.json
 agent/outbound_log.json
+agent/cloud_setting.json
 
 # OS / editor cruft
 .DS_Store

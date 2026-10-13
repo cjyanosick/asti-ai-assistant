@@ -21,11 +21,13 @@ CLOUD_PROVIDER = os.environ.get("ASTI_CLOUD_PROVIDER", "anthropic")
 CLOUD_MODEL = os.environ.get("ASTI_CLOUD_MODEL", "claude-haiku-4-5")
 
 # User-facing privacy setting: "Cloud by choice" means there has to be a way
-# to choose none. Default true (today's behavior unchanged); set
-# ASTI_ALLOW_CLOUD=false to force every intent to answer locally, including
-# general_knowledge — lower quality on plain factual questions, but ASTI
-# never reaches the cloud provider at all.
-ALLOW_CLOUD = os.environ.get("ASTI_ALLOW_CLOUD", "true").lower() != "false"
+# to choose none. This is the env-sourced DEFAULT only, used when no live
+# override has ever been saved — the actual live, GUI-toggleable value is
+# cloud_setting.is_cloud_allowed(), read fresh on every call (not a
+# load-once constant like this one) so a toggle takes effect on the very
+# next message with no restart. Set ASTI_ALLOW_CLOUD=false to change the
+# default when no override exists.
+ALLOW_CLOUD_DEFAULT = os.environ.get("ASTI_ALLOW_CLOUD", "true").lower() != "false"
 CLOUD_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 # Context minimization (roadmap #6): a hard cap on how much of a message can

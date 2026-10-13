@@ -3,6 +3,7 @@ from model_provider import generate_response, generate_structured_response, gene
 from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory, semantic_search
 from router import classify_intent
 from outbound_log import load_outbound_log
+from cloud_setting import is_cloud_allowed
 from config import (
     DEFAULT_PROVIDER,
     DEFAULT_MODEL,
@@ -10,7 +11,6 @@ from config import (
     CLOUD_MODEL,
     CLOUD_API_KEY,
     ENCRYPTION_KEY,
-    ALLOW_CLOUD,
     MAX_CLOUD_PROMPT_CHARS,
     MAX_FILE_READ_CHARS,
 )
@@ -131,7 +131,7 @@ def _notify_cloud_disabled_once():
     global _notified_cloud_disabled
     if not _notified_cloud_disabled:
         print(
-            "[privacy] ASTI_ALLOW_CLOUD=false — answering general-knowledge "
+            "[privacy] Cloud disabled — answering general-knowledge "
             "questions locally instead of via the cloud provider."
         )
         _notified_cloud_disabled = True
@@ -471,7 +471,7 @@ def build_diagnostics_report():
         f"Local provider/model:  {DEFAULT_PROVIDER} / {DEFAULT_MODEL}",
         f"Local model reachable: {ollama_ok}",
         f"Cloud provider/model:  {CLOUD_PROVIDER} / {CLOUD_MODEL}",
-        f"Cloud allowed:         {ALLOW_CLOUD}",
+        f"Cloud allowed:         {is_cloud_allowed()}",
         f"Cloud API key set:     {bool(CLOUD_API_KEY)}",
         f"Max outbound chars:    {MAX_CLOUD_PROMPT_CHARS}",
         f"Encryption at rest:    {'on' if ENCRYPTION_KEY else 'off (plaintext)'}",
@@ -488,10 +488,11 @@ def ask_llm(prompt, mode="chat"):
         # No personal angle to this question. personal_memory.json is never
         # loaded on this path at all — not loaded-then-discarded, genuinely
         # never read — so it cannot end up in a request sent to the cloud
-        # provider. This is the hard privacy boundary, independent of ALLOW_CLOUD.
+        # provider. This is the hard privacy boundary, independent of the
+        # cloud-allowed setting.
         system_prompt = _general_system_prompt()
 
-        if ALLOW_CLOUD:
+        if is_cloud_allowed():
             # Context minimization: cap what actually leaves the machine,
             # independent of content — a misclassified huge paste shouldn't
             # ship in full just because nothing else caught it. Local paths
@@ -509,9 +510,9 @@ def ask_llm(prompt, mode="chat"):
                 )
             return response
 
-        # User-chosen opt-out, not a silent fallback: ASTI_ALLOW_CLOUD=false
-        # means every intent answers locally, even the ones that would
-        # normally reach the cloud for better quality on plain factual questions.
+        # User-chosen opt-out, not a silent fallback: cloud disabled means
+        # every intent answers locally, even the ones that would normally
+        # reach the cloud for better quality on plain factual questions.
         _notify_cloud_disabled_once()
         return generate_response(prompt, system=system_prompt)
 
