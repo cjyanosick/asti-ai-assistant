@@ -1093,3 +1093,50 @@ HTML validity and structural balance checks.
 ### Result
 Third step of the GUI polish pass done. Next: diagnostics panel, then the
 cloud toggle (needs the `ALLOW_CLOUD` live-reload fix first).
+
+## Fix: tasks now fully conversational — query and complete via chat
+
+### What was broken
+Carter asked "what are my tasks" and got told ASTI didn't know. Root
+cause: `recall` mode only ever read `personal_memory.json`, never
+`tasks.json`. Separately, there was no way at all to mark a task done
+through conversation — only the CLI's `/done` or the GUI checkbox could.
+
+### What changed
+1. **Query tasks via recall** — `ask_llm()`'s `recall` branch now includes
+   the task list alongside personal memory. No new intent needed; "what
+   are my tasks" already classified as `recall` correctly, it just had
+   nothing to retrieve from.
+2. **Complete tasks via conversation** — new `task_complete` intent,
+   deliberately conservative (needs a clear signal like "mark X done" or
+   "I finished X," not just incidental wording overlap). New
+   `_match_task()` reuses the `reconcile_key()` pattern exactly: show the
+   model the real open tasks, constrain the answer to a known id or
+   `"__none__"`, Python validates — unmatched answers decline rather than
+   guessing which task to complete.
+
+### Known, accepted limitation
+The router classifies intent with zero visibility into actual task
+content. "I finished calling the dentist" → `task_complete` (matches the
+`task` intent's own canonical example phrase), but "I finished reading
+harry potter" → `chat`, despite referencing a real open task — identical
+sentence structure, different outcome. Deliberate: under-firing just
+means being more explicit or checking the box manually; over-firing could
+mark the wrong task done, corrupting real state. The prompt explicitly
+says "when unsure, prefer chat." Giving the classifier real task-list
+visibility is a separate, carefully-scoped future step if ever worth it —
+not a quick wording fix, and not chased further here.
+
+### Verification
+Router: 14/14 on a matrix covering the new intent plus every previously-
+established regression case. End-to-end: an ambiguous completion
+correctly declines; an explicit one ("mark read harry potter as done")
+correctly matches and completes; a second attempt on an already-done task
+correctly finds no open match. Task creation, chat, recall all clean.
+All test artifacts (a leaked `personal_memory` entry from `extract_memory`
+firing on a chat-classified test message, a test task, test conversation
+turns) found and cleaned from real data after testing.
+
+### Result
+Tasks are a first-class conversational capability now: create, query,
+and complete, not just create.
