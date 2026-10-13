@@ -860,3 +860,36 @@ choice") — recall is done. Cloud toggle is next, which needs the
 `ALLOW_CLOUD` live-reload architecture decision first (currently a
 load-once constant from `.env`; a GUI toggle needs it read fresh per
 call instead).
+
+## Milestone: File upload in the GUI
+
+### What changed
+- Refactored `llm.py`'s file summarization into a shared core,
+  `_summarize_file_content(label, content)`, used by two thin entry
+  points: `read_file_summary(path)` for the CLI (unchanged behavior) and
+  new `summarize_uploaded_file(filename, raw_bytes)` for the GUI, which
+  decodes already-received upload bytes instead of reading a local path.
+  One implementation instead of two that could drift apart.
+- New `POST /api/read` in `app.py` accepts a multipart upload, calls
+  `summarize_uploaded_file()`. Added a 10MB `MAX_CONTENT_LENGTH` as a
+  basic safety net against an accidental huge upload.
+- Frontend: a paperclip button in the composer opens a native file
+  picker; the upload appears in the chat thread as a filename bubble plus
+  an AI summary bubble (tagged "file"), matching how file-upload UX
+  generally looks in ChatGPT/Claude.
+- Deliberately no persistence yet — same one-shot behavior as the CLI's
+  `/read`. Scoped separately on purpose so persistence can be added and
+  tried immediately after, not bundled into this step.
+
+### Verification
+Real text file (`README.md`) summarizes correctly through the upload
+endpoint; missing file field 400s; a binary file gets a clean error
+instead of crashing; `memory.json` turn count unchanged across all upload
+tests (69 before and after), confirming the stateless behavior; the CLI's
+`read_file_summary()` still works correctly after the refactor.
+
+### Result
+Both pieces of "file tools" now exist in the GUI the same way they do in
+the CLI — upload instead of typing a path, same underlying summarization.
+Persistence (saving file reads to conversation history / personal memory)
+is the next slice.
