@@ -56,6 +56,7 @@
     gap: 14px;
   }
   .msg {
+    position: relative;
     max-width: 70%;
     padding: 10px 14px;
     border-radius: 12px;
@@ -65,6 +66,29 @@
   }
   .msg.user, .msg.error {
     white-space: pre-wrap;
+  }
+  .reply-btn {
+    position: absolute;
+    top: 2px;
+    right: -26px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 2px 4px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .msg:hover .reply-btn {
+    opacity: 1;
+  }
+  .reply-btn:hover {
+    color: var(--accent);
+  }
+  .msg.user .reply-btn {
+    right: auto;
+    left: -26px;
   }
   .msg.user {
     align-self: flex-end;
@@ -137,6 +161,36 @@
     border-bottom: 1px solid var(--border);
     width: 100%;
     text-align: center;
+  }
+  #reference-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  #reference-chip-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-left: 2px solid var(--accent);
+    padding-left: 8px;
+  }
+  #reference-clear {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 15px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #reference-clear:hover {
+    color: var(--text);
   }
   #composer {
     border-top: 1px solid var(--border);
@@ -457,6 +511,10 @@
     <button id="recall-open" class="header-btn">🔍 Recall</button>
   </header>
   <div id="messages"></div>
+  <div id="reference-chip" hidden>
+    <span id="reference-chip-text"></span>
+    <button id="reference-clear" title="Clear reference">&times;</button>
+  </div>
   <div id="composer">
     <button id="attach" title="Attach a file">📎</button>
     <input id="file-input" type="file" hidden>
@@ -641,6 +699,20 @@ function addMessage(role, text, intent) {
   } else {
     div.textContent = text;
   }
+
+  // Reply affordance — lets the user explicitly point at this exact
+  // message instead of relying on the model to guess what "it"/"that"
+  // means from fuzzy recent-turns context. User and AI messages only;
+  // not error/thinking bubbles.
+  if (role === "user" || role === "ai") {
+    const replyBtn = document.createElement("button");
+    replyBtn.className = "reply-btn";
+    replyBtn.title = "Reference this message";
+    replyBtn.textContent = "↩";
+    replyBtn.addEventListener("click", () => setReference(text));
+    div.appendChild(replyBtn);
+  }
+
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return div;
@@ -655,9 +727,35 @@ function addThinking() {
   return div;
 }
 
+// --- Reference a prior message — lets the user explicitly point at an
+// earlier message instead of relying on the model to guess what "it"/
+// "that" means. One-shot: clears itself after the next message is sent,
+// same as "reply to" in most chat apps.
+const referenceChip = document.getElementById("reference-chip");
+const referenceChipText = document.getElementById("reference-chip-text");
+const referenceClear = document.getElementById("reference-clear");
+let activeReference = null;
+
+function setReference(text) {
+  activeReference = text;
+  referenceChipText.textContent = text.replace(/\s+/g, " ").slice(0, 140);
+  referenceChip.hidden = false;
+  inputEl.focus();
+}
+
+function clearReference() {
+  activeReference = null;
+  referenceChip.hidden = true;
+}
+
+referenceClear.addEventListener("click", clearReference);
+
 async function sendMessage() {
   const text = inputEl.value.trim();
   if (!text) return;
+
+  const reference = activeReference;
+  clearReference();
 
   addMessage("user", text);
   inputEl.value = "";
@@ -669,7 +767,7 @@ async function sendMessage() {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, reference }),
     });
 
     thinking.remove();

@@ -488,7 +488,7 @@ def build_diagnostics_report():
 
 
 #memory draw injection:
-def ask_llm(prompt, mode="chat"):
+def ask_llm(prompt, mode="chat", reference=None):
     if mode == "general_knowledge":
         # No personal angle to this question. personal_memory.json is never
         # loaded on this path at all — not loaded-then-discarded, genuinely
@@ -574,6 +574,23 @@ User question:
     for item in recent_turns:
         memory_text += f"User: {item['user']}\nAI: {item['ai']}\n\n"
 
+    # Explicit reference (GUI "reply to this message" click): presented
+    # distinctly from the general recent-turns block above, since this
+    # isn't ambient context — the user deliberately pointed at this exact
+    # text, so it should carry more weight than anything inferred.
+    reference_block = (
+        f"\n\n=== REFERENCED MESSAGE ===\n"
+        f"The user clicked \"reply\" on this exact earlier message and is\n"
+        f"asking about THIS specific text, not anything else:\n"
+        f"{reference}\n"
+        f"=== END REFERENCED MESSAGE ===\n\n"
+        f"If the user's message below uses a word like \"that\", \"it\", or "
+        f"\"this\" without naming what it means, it refers to the "
+        f"referenced message above — treat it exactly as if the user had "
+        f"pasted that text in place of the pronoun.\n"
+        if reference else ""
+    )
+
     full_prompt = f"""
 You are ASTI, a personal assistant for the user. Today's date is {date.today().isoformat()}.
 Respond naturally and conversationally — don't list generic AI capability
@@ -593,7 +610,7 @@ Conversation history:
 
 Personal memory:
 {personal_memory_text}
-
+{reference_block}
 User message:
 {prompt}
 """
@@ -603,11 +620,19 @@ User message:
 
 #input ask
 # input ask
-def process_turn(user_input):
+def process_turn(user_input, reference=None):
     # The actual "have a conversation" pipeline — shared by the CLI loop
     # below and app.py's web UI, so both interfaces run identical logic
     # instead of risking two copies drifting apart over time.
-    intent = classify_intent(user_input)
+    #
+    # `reference`: the GUI lets the user click an earlier message to
+    # explicitly reference it, instead of relying on the model to guess
+    # what "it"/"that" means from fuzzy recent-turns context — the same
+    # kind of ambiguity that caused the "this doc" router bug. An explicit
+    # reference is an unambiguous signal, so it deterministically forces
+    # chat mode rather than risking the classifier routing it elsewhere
+    # (same precedent as the file-reference regex in router.py).
+    intent = "chat" if reference else classify_intent(user_input)
 
     memory_update = extract_memory(user_input)
 
@@ -618,7 +643,7 @@ def process_turn(user_input):
             memory_update["value"]
         )
 
-    response = ask_llm(user_input, mode=intent)
+    response = ask_llm(user_input, mode=intent, reference=reference)
 
     # Embed the turn for semantic recall (roadmap #7) — best-effort: if
     # the embedding model isn't available for some reason, still save
