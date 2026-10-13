@@ -799,3 +799,38 @@ quality. Automatic injection into live responses is not revisited unless
 a materially different approach is proposed (e.g. a larger/different
 local model, or filtering semantic matches against personal-memory
 conflicts before injection) — not just reworded prompt instructions.
+
+## Milestone: First GUI slice — working chat in the browser
+
+### What changed
+- New `app.py`: a Flask server, `host="127.0.0.1"` explicit — localhost
+  only, never the network, since personal data runs through this. Imports
+  `llm.py` directly, one route (`POST /api/chat`) plus the static page.
+- Extracted `process_turn()` out of the CLI loop's tail in `llm.py` — the
+  actual classify → extract/update memory → respond → embed → save
+  pipeline. Both the CLI loop and `app.py`'s `/api/chat` call this same
+  function now, instead of risking two copies of the logic drifting apart.
+  CLI behavior unchanged — stays the quick testing tool; the web UI is
+  meant to become the real day-to-day interface, per the stated goal of a
+  polished GUI with the CLI as backend-only.
+- `static/index.html`: one self-contained page, no build step, no
+  framework — dark theme, message bubbles, an intent tag per AI response
+  (same info the CLI's `[intent: X]` gives), a "thinking" indicator, and
+  an inline error message if the server can't be reached.
+- Explicitly scoped to chat only. Memory browsing, task list, recall
+  search, cloud toggle, diagnostics, file upload for `/read` all stay
+  CLI-only for now — each is its own future GUI slice.
+
+### Verification
+Ran the server locally and hit it directly: index page serves; `/api/chat`
+round-trips correctly through both the local `recall` path (real
+personal-memory answer) and the cloud `general_knowledge` path (clean
+response, no disclaimer dump — same system-prompt fix carries through
+since it's the same `ask_llm` code); empty message correctly 400s. Real
+`memory.json` backed up before testing, confirmed unaffected after.
+
+### Result
+ASTI has a working browser-based chat interface for the first time. The
+CLI (`llm.py`) and the GUI (`app.py`) now share one pipeline
+(`process_turn()`), so every future fix to the conversation logic applies
+to both automatically.
