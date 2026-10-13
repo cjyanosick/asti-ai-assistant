@@ -1,6 +1,7 @@
 from model_provider import generate_structured_response
 
 import json
+import re
 
 # Everything ASTI knows how to do with a turn.
 # Adding a capability = add it here, add a branch in llm.py's loop
@@ -11,6 +12,21 @@ INTENTS = {
     "general_knowledge", # a question with no personal angle — answered without personal memory
     "task",              # user wants to record a to-do / reminder for themselves
 }
+
+# Deterministic override, checked before the LLM call. A message that
+# explicitly references "this/that/the doc/document/file/pdf" is, by
+# definition, asking about something in conversation history — never
+# general_knowledge (never loads history) or recall (only checks structured
+# personal facts, never conversation content). Caught a real failure:
+# "what are the grc parts of this doc", asked immediately after a PDF
+# upload, classified general_knowledge and got sent to Claude with zero
+# context, which correctly replied "I don't see any document attached."
+# Python enforces this — it's a clear, mechanical signal, not a judgment
+# call worth re-litigating via prompt tuning.
+_FILE_REFERENCE_RE = re.compile(
+    r"\b(this|that|the)\s+(doc(ument)?|file|pdf)s?\b",
+    re.IGNORECASE,
+)
 
 INTENT_SCHEMA = {
     "type": "object",
@@ -25,6 +41,9 @@ INTENT_SCHEMA = {
 
 
 def classify_intent(message):
+    if _FILE_REFERENCE_RE.search(message):
+        return "chat"
+
     # Model interprets meaning; Python enforces the allowlist.
     # Bad JSON or an unknown label falls back to "chat" — never crash,
     # never route to a capability that doesn't exist.
