@@ -28,11 +28,12 @@ def index():
 def chat():
     data = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
+    reference = (data.get("reference") or "").strip() or None
 
     if not message:
         return jsonify({"error": "message is required"}), 400
 
-    intent, response = process_turn(message)
+    intent, response = process_turn(message, reference=reference)
 
     return jsonify({"intent": intent, "response": response})
 
