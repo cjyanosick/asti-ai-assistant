@@ -923,3 +923,42 @@ File reading now handles the three formats people actually attach day to
 day (text, PDF, Word) in both the CLI and GUI. Ready for the persistence
 slice — nothing about how files get summarized needs to change for that,
 only whether the result gets saved.
+
+## Milestone: File reads now persist into conversation history
+
+### What changed
+- `_summarize_file_content()` now calls `add_memory()` after summarizing
+  — same path every chat turn already uses, with a best-effort embedding
+  (same pattern as `process_turn()`: still save if embedding fails).
+  Both `read_file_summary()` (CLI) and `summarize_uploaded_file()` (GUI)
+  share this function, so persistence landed in both entry points at
+  once. Stored as `{"user": "[uploaded file: <label>]", "ai": "<summary>"}`.
+- Deliberately did **not** run `extract_memory()` against file summaries
+  — that pipeline is tuned for short conversational statements, not
+  document summaries, and `personal_memory` is too trusted a store to
+  risk on an untested extraction path. Facts-from-documents stays a
+  separate, deliberate future decision if wanted.
+- Reusing `add_memory()` gets file reads two already-proven mechanisms
+  for free, no new injection logic: recent-turn chat continuity (a file
+  read becomes part of the last-3-turns context) and `/recall`
+  searchability (same `semantic_search()` every other turn uses).
+
+### Verification
+Reading a file adds exactly one turn with an embedding. A reworded
+`/recall` query found it correctly (0.613 similarity, zero shared
+keywords with the stored content). A direct chat follow-up ("tell me
+more about the file I just uploaded") correctly referenced specific
+details from the file via recent-turn continuity.
+
+**Also found and flagged, not fixed**: the router doesn't always classify
+a "what about that thing I just read" follow-up as `chat` — it sometimes
+lands in `general_knowledge` or `recall`, both of which skip conversation
+history by design. Same pre-existing router-ambiguity pattern already
+documented elsewhere (e.g. "my favorite color is teal" → `recall`), not
+something this change broke.
+
+### Result
+File reads are now full conversation participants — searchable, and
+referenced naturally in follow-up chat when the router classifies the
+follow-up correctly. "File tools" (upload, PDF/docx, persistence) is
+functionally complete as a first full slice.
