@@ -1340,3 +1340,44 @@ else broke.
 The GUI now reads as a continuous conversation on open, and the
 "searchable regardless of cloud or local" half of the request was already
 true and is now confirmed/documented rather than assumed.
+
+## Milestone: Reference a prior message
+
+### What changed
+- A small reply icon on every message (live or loaded history) lets the
+  user explicitly point at it, instead of relying on the model to guess
+  "it"/"that" from fuzzy recent-turns context — the same ambiguity that
+  caused the earlier "this doc" router bug. A chip above the composer
+  shows the referenced text; sending clears it (one-shot, like "reply to"
+  in most chat apps).
+- `process_turn(user_input, reference=None)` forces `intent="chat"`
+  whenever a reference is present — deterministic, same precedent as
+  `router.py`'s file-reference regex. `ask_llm()` threads the reference
+  into chat mode's prompt as a clearly-delimited block, with explicit
+  pronoun-resolution instructions. `memory.json` storage is unaffected —
+  only the live prompt includes the reference, not what gets saved.
+
+### Known limitation, not chased further
+Took three prompt iterations to get working reliably. llama3 handles
+explicit phrasing ("summarize the referenced message") perfectly, but
+vague pronoun follow-ups ("simplify it") are still sometimes unreliable
+even with an instruction telling it how to resolve them — same local-model
+instruction-following ceiling documented elsewhere this session.
+
+### Verification
+End-to-end through the real HTTP route: an explicit referenced question
+correctly resolves; a normal message with no reference is unaffected;
+`general_knowledge`/`recall` unaffected. Real `memory.json` backed up
+before testing, restored after.
+
+### Side discovery, flagged separately
+While testing, found Carter's real `personal_memory.json` had a corrupted
+`goals.savings_target` value — literally the string `"2026"` instead of a
+dollar amount. Traced likely cause: a bare, context-free message `"2026"`
+sent during a confusing exchange about "openai hack" got matched by
+`reconcile_key()` onto the existing `savings_target` key and silently
+overwrote it. This is a real failure mode of `reconcile_key()` — an
+ambiguous short message can get mismatched to the wrong existing key —
+not something to fix inside this feature's scope, but worth a dedicated
+look: `reconcile_key()` has no sanity check on whether a bare, low-context
+message should be eligible to overwrite an existing value at all.
