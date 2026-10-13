@@ -1039,3 +1039,32 @@ browser, since that's the authoritative test for a UI change.
 
 ### Result
 First step of the GUI polish pass done. Next: memory vault panel.
+
+## Milestone: Memory vault panel in the GUI (polish pass, step 2)
+
+### What changed
+- New routes in `app.py`, thin wrappers around the same `memory.py`
+  functions the CLI's `/memory`/`/edit`/`/forget`/`/export` already use:
+  `GET /api/memory`, `POST /api/memory/edit`, `POST /api/memory/forget`,
+  `POST /api/memory/export`. Category validated against
+  `ALLOWED_MEMORY_CATEGORIES`, same allowlist the CLI enforces.
+- Frontend: a "Memory" button opens a modal — categories grouped and
+  sorted, each entry with edit (populates the add-form) and delete
+  buttons, an Export button, and an add/edit form. Reuses `escapeHtml()`
+  from the markdown renderer when building rows, since stored values
+  originate from model extraction and shouldn't be trusted uncritically.
+- Fixed a stale comment on `/api/read` left over from before the
+  persistence slice shipped.
+
+### Verification
+Curl-verified against real data: GET returns real categories/entries;
+edit adds and confirms an entry; invalid category 400s with the valid
+list; forget removes an entry and 404s on a repeat; export writes a real
+timestamped file. Real `personal_memory.json` backed up before testing,
+confirmed unaffected after; test-triggered export file cleaned up. No
+browser automation available — backend fully curl-verified, frontend JS
+reviewed against the working recall-modal pattern plus a structural
+balance check, but click interactions need Carter's visual confirmation.
+
+### Result
+Second step of the GUI polish pass done. Next: tasks panel.
