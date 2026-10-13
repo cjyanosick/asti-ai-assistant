@@ -544,6 +544,39 @@ User message:
 
 #input ask
 # input ask
+def process_turn(user_input):
+    # The actual "have a conversation" pipeline — shared by the CLI loop
+    # below and app.py's web UI, so both interfaces run identical logic
+    # instead of risking two copies drifting apart over time.
+    intent = classify_intent(user_input)
+
+    # A to-do isn't a personal fact — skip extraction so a task never also
+    # lands as a near-duplicate entry in personal_memory.json.
+    if intent != "task":
+        memory_update = extract_memory(user_input)
+
+        if memory_update["should_remember"]:
+            update_personal_memory(
+                memory_update["category"],
+                memory_update["key"],
+                memory_update["value"]
+            )
+
+    response = ask_llm(user_input, mode=intent)
+
+    # Embed the turn for semantic recall (roadmap #7) — best-effort: if
+    # the embedding model isn't available for some reason, still save
+    # the turn itself rather than losing conversation history over it.
+    try:
+        embedding = generate_embedding(f"{user_input}\n{response}")
+    except requests.RequestException:
+        embedding = None
+
+    add_memory(user_input, response, embedding=embedding)
+
+    return intent, response
+
+
 if __name__ == "__main__":
     while True:
         user_input = input("\nYou: ")
@@ -666,31 +699,7 @@ if __name__ == "__main__":
             print()
             continue
 
-        intent = classify_intent(user_input)
+        intent, response = process_turn(user_input)
         print(f"[intent: {intent}]")
-
-        # A to-do isn't a personal fact — skip extraction so a task never also
-        # lands as a near-duplicate entry in personal_memory.json.
-        if intent != "task":
-            memory_update = extract_memory(user_input)
-
-            if memory_update["should_remember"]:
-                update_personal_memory(
-                    memory_update["category"],
-                    memory_update["key"],
-                    memory_update["value"]
-                )
-
-        response = ask_llm(user_input, mode=intent)
         print("\nAI:", response)
-
-        # Embed the turn for semantic recall (roadmap #7) — best-effort: if
-        # the embedding model isn't available for some reason, still save
-        # the turn itself rather than losing conversation history over it.
-        try:
-            embedding = generate_embedding(f"{user_input}\n{response}")
-        except requests.RequestException:
-            embedding = None
-
-        add_memory(user_input, response, embedding=embedding)
 
