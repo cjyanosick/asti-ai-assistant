@@ -2,7 +2,6 @@ import re
 from model_provider import generate_response, generate_structured_response, generate_cloud_response, generate_embedding
 from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory, semantic_search
 from router import classify_intent
-from tasks import add_task, load_tasks, complete_task
 from outbound_log import load_outbound_log
 from config import (
     DEFAULT_PROVIDER,
@@ -306,79 +305,6 @@ Return structured JSON matching the provided schema.
     
 #add controlled extractor
 
-TASK_SCHEMA = {
-    "type": "object",
-    "properties": {"text": {"type": "string"}},
-    "required": ["text"],
-}
-
-
-def extract_task(prompt):
-    # Router already decided this message wants a task recorded; this call only
-    # cleans the wording into a short imperative phrase for the tasks list.
-    task_prompt = f"""Extract the to-do item from the user's message as a short,
-imperative action phrase. Drop lead-ins like "remind me to" or "add ... to my list".
-
-User message:
-{prompt}
-
-Examples:
-- "remind me to call the dentist" -> "call the dentist"
-- "add buy milk to my list" -> "buy milk"
-- "I need to finish the report by Friday" -> "finish the report by Friday"
-
-Return JSON matching the schema."""
-
-    raw = generate_structured_response(task_prompt, TASK_SCHEMA)
-
-    try:
-        text = json.loads(raw).get("text", "").strip()
-    except (json.JSONDecodeError, TypeError):
-        text = ""
-
-    return text if text else prompt.strip()
-
-
-def _match_task(prompt, open_tasks):
-    # Router already decided this message says an existing task is done;
-    # this call figures out which one. Same pattern as reconcile_key() in
-    # the memory pipeline: show the model the real open tasks, constrain
-    # the answer to a known id or the sentinel "__none__", Python validates
-    # the choice. Garbage/unmatched answers fall back to None (no action)
-    # rather than guessing a task to complete.
-    if not open_tasks:
-        return None
-
-    options = [str(t["id"]) for t in open_tasks] + ["__none__"]
-
-    schema = {
-        "type": "object",
-        "properties": {"id": {"type": "string", "enum": options}},
-        "required": ["id"],
-    }
-
-    tasks_lines = "\n".join(f"- id {t['id']}: {t['text']}" for t in open_tasks)
-
-    match_prompt = f"""Open tasks:
-{tasks_lines}
-
-User message: "{prompt}"
-
-Which task id does this message say is done, finished, or complete? If it
-doesn't clearly match exactly one task above, return "__none__".
-
-Return JSON matching the schema."""
-
-    raw = generate_structured_response(match_prompt, schema)
-
-    try:
-        choice = json.loads(raw).get("id")
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-    return int(choice) if choice in options and choice != "__none__" else None
-
-
 def _general_system_prompt():
     # Response-quality fix: without this, the cloud model gets a bare,
     # context-free prompt and defaults to generic "I'm an AI, here are my
@@ -526,7 +452,7 @@ def summarize_uploaded_file(filename, raw_bytes):
 def build_diagnostics_report():
     # Privacy-safe diagnostics (roadmap #6, last slice): config and counts
     # only, never content. Safe to read aloud or paste anywhere — no values,
-    # no keys, no personal data, no task text, no prompts.
+    # no keys, no personal data, no prompts.
     try:
         ollama_ok = requests.get("http://localhost:11434/api/tags", timeout=2).status_code == 200
     except requests.RequestException:
@@ -535,9 +461,6 @@ def build_diagnostics_report():
     personal_memory = load_personal_memory()
     categories_populated = sum(1 for v in personal_memory.values() if v)
     total_entries = sum(len(v) for v in personal_memory.values())
-
-    tasks = load_tasks()
-    tasks_done = sum(1 for t in tasks if t["done"])
 
     outbound = load_outbound_log()
 
@@ -553,7 +476,6 @@ def build_diagnostics_report():
         f"Max outbound chars:    {MAX_CLOUD_PROMPT_CHARS}",
         f"Encryption at rest:    {'on' if ENCRYPTION_KEY else 'off (plaintext)'}",
         f"Personal memory:       {categories_populated}/{len(personal_memory)} categories populated, {total_entries} entries",
-        f"Tasks:                 {len(tasks)} total, {tasks_done} done",
         f"Outbound calls logged: {len(outbound)}",
         f"Conversation turns:    {len(history)} total, {embedded_turns} semantically searchable",
     ]
@@ -562,24 +484,6 @@ def build_diagnostics_report():
 
 #memory draw injection:
 def ask_llm(prompt, mode="chat"):
-    if mode == "task":
-        task = add_task(extract_task(prompt))
-        return f"Added to your list: {task['text']}"
-
-    if mode == "task_complete":
-        open_tasks = [t for t in load_tasks() if not t["done"]]
-        task_id = _match_task(prompt, open_tasks)
-
-        if task_id is None:
-            return (
-                "I'm not sure which task you mean — could you be more "
-                "specific, or check your task list?"
-            )
-
-        complete_task(task_id)
-        matched = next(t for t in open_tasks if t["id"] == task_id)
-        return f"Marked done: {matched['text']}"
-
     if mode == "general_knowledge":
         # No personal angle to this question. personal_memory.json is never
         # loaded on this path at all — not loaded-then-discarded, genuinely
@@ -615,27 +519,15 @@ def ask_llm(prompt, mode="chat"):
     personal_memory_text = str(personal_memory) #translate into readable text for llama
 
     if mode == "recall":
-        # Direct fact lookup: answer only from structured personal memory and
-        # the task list, skip conversation-history retrieval, and admit when
-        # the answer isn't stored. Tasks included here (not a new intent) —
-        # "what are my tasks" is a retrieval question, same shape as any
-        # other recall query.
-        tasks = load_tasks()
-        tasks_text = "\n".join(
-            f"- [{'x' if t['done'] else ' '}] {t['text']}" for t in tasks
-        ) if tasks else "(no tasks)"
-
+        # Direct fact lookup: answer only from structured personal memory,
+        # skip conversation-history retrieval, and admit when the fact isn't stored.
         recall_prompt = f"""You are a personal assistant answering a question about the user.
-Use ONLY the personal memory and task list below. Do not guess.
-If the answer isn't in either, say you don't have that stored yet.
-Answer concisely — one sentence for a single fact, a short list if asked
-about multiple tasks.
+Use ONLY the personal memory below. Do not guess.
+If the answer is not in personal memory, say you don't have that stored yet.
+Answer in one short sentence.
 
 Personal memory:
 {personal_memory_text}
-
-Tasks:
-{tasks_text}
 
 User question:
 {prompt}
@@ -696,17 +588,14 @@ def process_turn(user_input):
     # instead of risking two copies drifting apart over time.
     intent = classify_intent(user_input)
 
-    # A to-do (or marking one done) isn't a personal fact — skip extraction
-    # so it never also lands as a near-duplicate entry in personal_memory.json.
-    if intent not in ("task", "task_complete"):
-        memory_update = extract_memory(user_input)
+    memory_update = extract_memory(user_input)
 
-        if memory_update["should_remember"]:
-            update_personal_memory(
-                memory_update["category"],
-                memory_update["key"],
-                memory_update["value"]
-            )
+    if memory_update["should_remember"]:
+        update_personal_memory(
+            memory_update["category"],
+            memory_update["key"],
+            memory_update["value"]
+        )
 
     response = ask_llm(user_input, mode=intent)
 
@@ -773,29 +662,6 @@ if __name__ == "__main__":
         if user_input.strip() == "/export":
             filename = export_personal_memory()
             print(f"\nExported personal memory to {filename}")
-            continue
-
-        if user_input.strip() == "/tasks":
-            tasks = load_tasks()
-            print("\n--- Tasks ---")
-            if not tasks:
-                print("(no tasks)")
-            for task in tasks:
-                mark = "x" if task["done"] else " "
-                print(f"[{mark}] {task['id']}. {task['text']}")
-            print()
-            continue
-
-        if user_input.strip().startswith("/done"):
-            parts = user_input.split(maxsplit=1)
-            if len(parts) != 2 or not parts[1].strip().isdigit():
-                print("\nUsage: /done <task id>")
-                continue
-            task_id = int(parts[1].strip())
-            if complete_task(task_id):
-                print(f"\nMarked task {task_id} done")
-            else:
-                print(f"\nNo task with id {task_id}")
             continue
 
         if user_input.strip() == "/outbound":
