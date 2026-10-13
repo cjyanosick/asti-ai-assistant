@@ -282,6 +282,96 @@
     color: var(--text-dim);
     font-size: 13px;
   }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+  }
+  .modal-actions button, .form-row button {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .modal-actions button:hover, .form-row button:hover {
+    border-color: var(--accent);
+  }
+  .memory-category {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin: 12px 0 6px;
+  }
+  .memory-category:first-child { margin-top: 0; }
+  .memory-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .memory-row .memory-kv {
+    flex: 1;
+    overflow-wrap: anywhere;
+  }
+  .memory-row .memory-key {
+    color: var(--text-dim);
+  }
+  .memory-row button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+  }
+  .memory-row button:hover {
+    color: var(--text);
+  }
+  .memory-empty {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .form-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .form-row select, .form-row input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 6px 8px;
+    font-size: 12px;
+    outline: none;
+  }
+  .form-row select:focus, .form-row input:focus { border-color: var(--accent); }
+  .form-row input.key { flex: 1; }
+  .form-row input.value { flex: 1.3; }
+  .form-row button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+  }
+  .form-status {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    min-height: 14px;
+  }
 </style>
 </head>
 <body>
@@ -289,6 +379,7 @@
   <header>
     <h1>ASTI</h1>
     <span>local-first personal assistant</span>
+    <button id="memory-open" class="header-btn">🧠 Memory</button>
     <button id="recall-open" class="header-btn">🔍 Recall</button>
   </header>
   <div id="messages"></div>
@@ -297,6 +388,33 @@
     <input id="file-input" type="file" hidden>
     <textarea id="input" rows="1" placeholder="Message ASTI..."></textarea>
     <button id="send">Send</button>
+  </div>
+</div>
+
+<div id="memory-backdrop" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Personal Memory</h2>
+      <button id="memory-close" class="modal-close">&times;</button>
+    </div>
+    <div class="modal-actions">
+      <button id="memory-export">Export</button>
+    </div>
+    <div id="memory-list" style="overflow-y: auto;"></div>
+    <div class="form-row">
+      <select id="memory-form-category">
+        <option value="identity">identity</option>
+        <option value="preferences">preferences</option>
+        <option value="goals">goals</option>
+        <option value="projects">projects</option>
+        <option value="people">people</option>
+        <option value="other">other</option>
+      </select>
+      <input id="memory-form-key" class="key" type="text" placeholder="key">
+      <input id="memory-form-value" class="value" type="text" placeholder="value">
+      <button id="memory-form-save">Save</button>
+    </div>
+    <div id="memory-form-status" class="form-status"></div>
   </div>
 </div>
 
@@ -619,6 +737,159 @@ recallInput.addEventListener("keydown", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !recallBackdrop.hidden) closeRecall();
+});
+
+// --- Memory vault modal ---
+const memoryBackdrop = document.getElementById("memory-backdrop");
+const memoryOpen = document.getElementById("memory-open");
+const memoryClose = document.getElementById("memory-close");
+const memoryList = document.getElementById("memory-list");
+const memoryExportBtn = document.getElementById("memory-export");
+const memoryFormCategory = document.getElementById("memory-form-category");
+const memoryFormKey = document.getElementById("memory-form-key");
+const memoryFormValue = document.getElementById("memory-form-value");
+const memoryFormSave = document.getElementById("memory-form-save");
+const memoryFormStatus = document.getElementById("memory-form-status");
+
+async function forgetMemoryEntry(category, key) {
+  try {
+    const res = await fetch("/api/memory/forget", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, key }),
+    });
+    if (res.ok) loadMemoryList();
+  } catch (e) {
+    // ignore — list just won't refresh
+  }
+}
+
+async function loadMemoryList() {
+  memoryList.innerHTML = '<div class="memory-empty">Loading…</div>';
+
+  try {
+    const res = await fetch("/api/memory");
+    if (!res.ok) {
+      memoryList.innerHTML = '<div class="memory-empty">Could not load memory.</div>';
+      return;
+    }
+
+    const data = await res.json();
+    memoryList.innerHTML = "";
+    let anyEntries = false;
+
+    for (const category of Object.keys(data).sort()) {
+      const entries = data[category];
+      const keys = Object.keys(entries).sort();
+      if (!keys.length) continue;
+      anyEntries = true;
+
+      const heading = document.createElement("div");
+      heading.className = "memory-category";
+      heading.textContent = category;
+      memoryList.appendChild(heading);
+
+      for (const key of keys) {
+        const value = entries[key];
+        const row = document.createElement("div");
+        row.className = "memory-row";
+
+        const kv = document.createElement("div");
+        kv.className = "memory-kv";
+        kv.innerHTML = '<span class="memory-key">' + escapeHtml(key) +
+          ':</span> ' + escapeHtml(String(value));
+        row.appendChild(kv);
+
+        const editBtn = document.createElement("button");
+        editBtn.textContent = "✎";
+        editBtn.title = "Edit";
+        editBtn.addEventListener("click", () => {
+          memoryFormCategory.value = category;
+          memoryFormKey.value = key;
+          memoryFormValue.value = value;
+          memoryFormValue.focus();
+        });
+        row.appendChild(editBtn);
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "×";
+        delBtn.title = "Delete";
+        delBtn.addEventListener("click", () => forgetMemoryEntry(category, key));
+        row.appendChild(delBtn);
+
+        memoryList.appendChild(row);
+      }
+    }
+
+    if (!anyEntries) {
+      memoryList.innerHTML = '<div class="memory-empty">Nothing stored yet.</div>';
+    }
+  } catch (e) {
+    memoryList.innerHTML = '<div class="memory-empty">Could not reach ASTI.</div>';
+  }
+}
+
+function openMemory() {
+  memoryBackdrop.hidden = false;
+  memoryFormStatus.textContent = "";
+  loadMemoryList();
+}
+function closeMemory() {
+  memoryBackdrop.hidden = true;
+}
+
+memoryOpen.addEventListener("click", openMemory);
+memoryClose.addEventListener("click", closeMemory);
+memoryBackdrop.addEventListener("click", (e) => {
+  if (e.target === memoryBackdrop) closeMemory();
+});
+
+memoryFormSave.addEventListener("click", async () => {
+  const category = memoryFormCategory.value;
+  const key = memoryFormKey.value.trim();
+  const value = memoryFormValue.value.trim();
+
+  if (!key || !value) {
+    memoryFormStatus.textContent = "Key and value are both required.";
+    return;
+  }
+
+  memoryFormStatus.textContent = "Saving…";
+  try {
+    const res = await fetch("/api/memory/edit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, key, value }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      memoryFormStatus.textContent = "Error: " + (err.error || res.statusText);
+      return;
+    }
+    memoryFormKey.value = "";
+    memoryFormValue.value = "";
+    memoryFormStatus.textContent = "Saved.";
+    loadMemoryList();
+  } catch (e) {
+    memoryFormStatus.textContent = "Could not reach ASTI.";
+  }
+});
+
+memoryExportBtn.addEventListener("click", async () => {
+  memoryFormStatus.textContent = "Exporting…";
+  try {
+    const res = await fetch("/api/memory/export", { method: "POST" });
+    const data = await res.json();
+    memoryFormStatus.textContent = res.ok
+      ? "Exported to " + data.filename
+      : "Error: " + (data.error || res.statusText);
+  } catch (e) {
+    memoryFormStatus.textContent = "Could not reach ASTI.";
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !memoryBackdrop.hidden) closeMemory();
 });
 </script>
 </body>

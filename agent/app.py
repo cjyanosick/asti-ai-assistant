@@ -1,7 +1,13 @@
 from flask import Flask, request, jsonify, send_from_directory
 
-from llm import process_turn, summarize_uploaded_file
-from memory import semantic_search
+from llm import process_turn, summarize_uploaded_file, ALLOWED_MEMORY_CATEGORIES
+from memory import (
+    semantic_search,
+    load_personal_memory,
+    update_personal_memory,
+    forget_personal_memory,
+    export_personal_memory,
+)
 from model_provider import generate_embedding
 
 app = Flask(__name__, static_folder="static", static_url_path="")
@@ -49,8 +55,8 @@ def recall():
 
 @app.route("/api/read", methods=["POST"])
 def read_file():
-    # File tools, GUI entry point. No persistence yet — same one-shot
-    # behavior as the CLI's /read, deliberately a separate future slice.
+    # File tools, GUI entry point. Persists into conversation history the
+    # same way the CLI's /read does (see _summarize_file_content in llm.py).
     if "file" not in request.files or request.files["file"].filename == "":
         return jsonify({"error": "file is required"}), 400
 
@@ -58,6 +64,52 @@ def read_file():
     summary = summarize_uploaded_file(uploaded.filename, uploaded.read())
 
     return jsonify({"filename": uploaded.filename, "summary": summary})
+
+
+@app.route("/api/memory", methods=["GET"])
+def get_memory():
+    return jsonify(load_personal_memory())
+
+
+@app.route("/api/memory/edit", methods=["POST"])
+def edit_memory():
+    data = request.get_json(silent=True) or {}
+    category = (data.get("category") or "").strip()
+    key = (data.get("key") or "").strip()
+    value = (data.get("value") or "").strip()
+
+    if not category or not key or not value:
+        return jsonify({"error": "category, key, and value are all required"}), 400
+
+    if category not in ALLOWED_MEMORY_CATEGORIES:
+        return jsonify({
+            "error": f"unknown category '{category}'",
+            "valid_categories": sorted(ALLOWED_MEMORY_CATEGORIES),
+        }), 400
+
+    update_personal_memory(category, key, value)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/memory/forget", methods=["POST"])
+def forget_memory():
+    data = request.get_json(silent=True) or {}
+    category = (data.get("category") or "").strip()
+    key = (data.get("key") or "").strip()
+
+    if not category or not key:
+        return jsonify({"error": "category and key are required"}), 400
+
+    if forget_personal_memory(category, key):
+        return jsonify({"status": "ok"})
+
+    return jsonify({"error": f"no entry found at {category}.{key}"}), 404
+
+
+@app.route("/api/memory/export", methods=["POST"])
+def export_memory():
+    filename = export_personal_memory()
+    return jsonify({"filename": filename})
 
 
 if __name__ == "__main__":
