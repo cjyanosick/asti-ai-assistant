@@ -9,6 +9,7 @@ from memory import (
     export_personal_memory,
 )
 from model_provider import generate_embedding
+from tasks import load_tasks, add_task, complete_task
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 # Basic safety net against an accidental huge upload — not a hard
@@ -110,6 +111,37 @@ def forget_memory():
 def export_memory():
     filename = export_personal_memory()
     return jsonify({"filename": filename})
+
+
+@app.route("/api/tasks", methods=["GET"])
+def get_tasks():
+    return jsonify(load_tasks())
+
+
+@app.route("/api/tasks/add", methods=["POST"])
+def add_task_route():
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+
+    if not text:
+        return jsonify({"error": "text is required"}), 400
+
+    task = add_task(text)
+    return jsonify(task)
+
+
+@app.route("/api/tasks/complete", methods=["POST"])
+def complete_task_route():
+    data = request.get_json(silent=True) or {}
+    task_id = data.get("id")
+
+    if not isinstance(task_id, int):
+        return jsonify({"error": "id (integer) is required"}), 400
+
+    if complete_task(task_id):
+        return jsonify({"status": "ok"})
+
+    return jsonify({"error": f"no task with id {task_id}"}), 404
 
 
 if __name__ == "__main__":
