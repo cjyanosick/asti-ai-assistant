@@ -1068,3 +1068,28 @@ balance check, but click interactions need Carter's visual confirmation.
 
 ### Result
 Second step of the GUI polish pass done. Next: tasks panel.
+
+## Milestone: Tasks panel in the GUI (polish pass, step 3)
+
+### What changed
+- New routes in `app.py`, thin wrappers around `tasks.py`: `GET /api/tasks`,
+  `POST /api/tasks/add`, `POST /api/tasks/complete`. Matches the CLI's
+  `/tasks`/`/done` exactly — no uncomplete or delete, since `tasks.py`
+  doesn't support those either.
+- Frontend: a "Tasks" button opens a modal — checkbox list (checked and
+  disabled once done, strikethrough text), add-task input at the bottom.
+  Uses `textContent` for task text, not `innerHTML`, so no escaping
+  concern there.
+
+### Verification
+Curl-verified against a real (empty) `tasks.json`: GET returns `[]`; add
+creates and confirms a task; complete marks it done; completing a
+nonexistent id 404s; empty text 400s. Test task cleaned up after (file
+was created fresh by the test, so removing it just leaves a clean slate).
+No browser automation available — backend fully curl-verified, frontend
+JS follows the same twice-proven modal pattern (recall, memory) plus
+HTML validity and structural balance checks.
+
+### Result
+Third step of the GUI polish pass done. Next: diagnostics panel, then the
+cloud toggle (needs the `ALLOW_CLOUD` live-reload fix first).
