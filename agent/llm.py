@@ -615,6 +615,34 @@ _CITATION_CAUTION = (
 )
 
 
+# False "I saved it" claims (stress test, 10/14). Even with the NOT SAVED
+# YET block and an explicit "never say you saved it" rule, llama3 still
+# wrote "I've got a note in your personal memory" — both for facts awaiting
+# confirmation and for client facts that are never proposed at all. ASTI
+# never saves anything without the user's confirmation, so any such claim
+# is false by construction; Python appends the correction.
+_SAVE_CLAIM_RE = re.compile(
+    r"\b(i'?ve|i have|i'?ll|i will|i'?m going to)\s+(also\s+)?(got a note|made a note|noted|saved|stored|"
+    r"recorded|updated|added|logged|kept a note|make a note|save|store|record|add|log)\b"
+    r"|\b(in|to) (your|my) (personal )?memory\b"
+    r"|\bgot (it|that|this) (noted|saved|down)\b|\bnoted (it|that|this)( down)?\b",
+    re.IGNORECASE,
+)
+
+
+def _correct_save_claims(response, pending_memory):
+    if not _SAVE_CLAIM_RE.search(response):
+        return response
+    if pending_memory:
+        return response + (
+            "\n\n_(Not saved yet — choose Save below if you want ASTI to remember this.)_"
+        )
+    return response + (
+        "\n\n_(Nothing was saved to memory — ASTI only saves facts you confirm. "
+        "This stays in this chat's history.)_"
+    )
+
+
 def _today_text():
     # Weekday included (stress test, 10/14): with only an ISO date, llama3
     # guessed the day of the week — "Tuesday, October 12th" then
@@ -1334,6 +1362,8 @@ def process_turn(conversation_id, user_input, reference=None):
         conversation_id, user_input, mode=intent, reference=reference, pending_memory=pending_memory
     )
     response = fix_outdated_hotlines(response)
+    if intent == "chat":
+        response = _correct_save_claims(response, pending_memory)
     if (
         source == "local"
         and _CASE_CITATION_RE.search(response)
