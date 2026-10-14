@@ -933,6 +933,33 @@
     color: var(--text-dim);
   }
   .status-raw summary:hover { color: var(--text); }
+  .panel-intro {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: -4px 0 12px;
+    line-height: 1.5;
+  }
+  .settings-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+  }
+  .settings-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: #3d3d3d;
+  }
+  .settings-btn.danger { color: #e2655a; }
+  .settings-btn.danger:hover {
+    background: rgba(226, 101, 90, 0.1);
+    border-color: rgba(226, 101, 90, 0.4);
+  }
+  #settings-cloud-toggle { margin: 0; }
   .form-row {
     display: flex;
     gap: 6px;
@@ -1011,6 +1038,7 @@
         <button id="status-open" class="icon-btn" title="Diagnostics"></button>
         <button id="memory-open" class="icon-btn" title="Personal Memory"></button>
         <button id="recall-open" class="icon-btn" title="Semantic Recall"></button>
+        <button id="settings-open" class="icon-btn" title="Settings"></button>
       </div>
     </header>
     <div id="messages"></div>
@@ -1062,7 +1090,10 @@
       <h2>Personal Memory</h2>
       <button id="memory-close" class="modal-close"></button>
     </div>
+    <p class="panel-intro">Facts ASTI remembers about you across every conversation —
+      stored and used only on this device.</p>
     <div class="modal-actions">
+      <div id="memory-summary" class="status-note" style="margin-right: auto;"></div>
       <button id="memory-export">Export</button>
     </div>
     <div id="memory-list" style="overflow-y: auto;"></div>
@@ -1089,11 +1120,76 @@
       <h2>Semantic Recall</h2>
       <button id="recall-close" class="modal-close"></button>
     </div>
+    <p class="panel-intro">Finds things you've told ASTI before, by meaning rather than
+      exact words — entirely on this device.</p>
     <div class="modal-search">
       <input id="recall-input" type="text" placeholder="Search past conversations...">
       <button id="recall-search">Search</button>
     </div>
     <div id="recall-results"></div>
+  </div>
+</div>
+
+<div id="settings-backdrop" class="modal-backdrop" hidden>
+  <div class="modal status-modal">
+    <div class="modal-header">
+      <h2>Settings</h2>
+      <button id="settings-close" class="modal-close"></button>
+    </div>
+    <div class="status-body">
+      <div class="status-section">
+        <div class="status-section-title">Privacy</div>
+        <button id="settings-cloud-toggle" class="cloud-feature" role="switch" aria-checked="false">
+          <span id="settings-cloud-icon" class="cloud-feature-icon"></span>
+          <span id="settings-cloud-label" class="cloud-feature-label">Local Only</span>
+          <span class="switch-lg"><span class="switch-thumb-lg"></span></span>
+        </button>
+        <div class="status-note">When off, general-knowledge and code questions are
+          answered locally instead of reaching the cloud. Your personal memory and
+          documents are never sent to the cloud either way.</div>
+      </div>
+
+      <div class="status-section">
+        <div class="status-section-title">Data management</div>
+        <div class="status-row">
+          <span class="status-row-label">Export personal memory</span>
+          <button id="settings-export" class="settings-btn">Export</button>
+        </div>
+        <div class="status-note">Saved as an encrypted file — the same protection your
+          data already has on disk, not a plain-text backup.</div>
+        <div id="settings-data-status" class="form-status"></div>
+      </div>
+
+      <div class="status-section">
+        <div class="status-section-title">Danger zone</div>
+        <div class="status-row">
+          <span class="status-row-label">Clear uploaded documents</span>
+          <button id="settings-clear-documents" class="settings-btn danger">Clear</button>
+        </div>
+        <div class="status-row">
+          <span class="status-row-label">Forget all remembered facts</span>
+          <button id="settings-clear-memory" class="settings-btn danger">Forget all</button>
+        </div>
+        <div class="status-row">
+          <span class="status-row-label">Delete all conversations</span>
+          <button id="settings-clear-conversations" class="settings-btn danger">Delete all</button>
+        </div>
+        <div id="settings-danger-status" class="form-status"></div>
+      </div>
+
+      <div class="status-section">
+        <div class="status-section-title">About</div>
+        <div class="status-row">
+          <span class="status-row-label">ASTI</span>
+          <span class="status-row-value">Personal AI assistant</span>
+        </div>
+        <div class="status-note">Private by architecture. Local by default. Cloud by
+          choice. User controlled.</div>
+        <button id="settings-view-diagnostics" class="settings-btn" style="margin-top: 10px;">
+          View full diagnostics
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1221,6 +1317,7 @@ const ICONS = {
   paperclip: '<path d="M21 12.5l-8.49 8.49a4.24 4.24 0 01-6-6l9.19-9.19a2.83 2.83 0 014 4l-8.49 8.49a1.41 1.41 0 01-2-2l7.78-7.78"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>',
   upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 112.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
 };
 
 function icon(name, size) {
@@ -1237,11 +1334,13 @@ document.getElementById("sidebar-toggle").innerHTML = icon("menu");
 document.getElementById("status-open").innerHTML = icon("barChart");
 document.getElementById("memory-open").innerHTML = icon("database");
 document.getElementById("recall-open").innerHTML = icon("search");
+document.getElementById("settings-open").innerHTML = icon("settings");
 document.getElementById("reference-clear").innerHTML = icon("x", 14);
 document.getElementById("attach").innerHTML = icon("paperclip");
 document.getElementById("status-close").innerHTML = icon("x", 18);
 document.getElementById("memory-close").innerHTML = icon("x", 18);
 document.getElementById("recall-close").innerHTML = icon("x", 18);
+document.getElementById("settings-close").innerHTML = icon("x", 18);
 document.getElementById("drop-overlay-icon").innerHTML = icon("upload", 32);
 
 function buildSourceBadge(source) {
@@ -1793,6 +1892,16 @@ const recallInput = document.getElementById("recall-input");
 const recallSearchBtn = document.getElementById("recall-search");
 const recallResults = document.getElementById("recall-results");
 
+function relevanceLabel(score) {
+  // Raw cosine similarity means nothing to a non-technical reader — map it
+  // to plain language instead. The exact number is still available on
+  // hover (see score.title above), for Carter's own debugging.
+  if (score >= 0.7) return "Strong match";
+  if (score >= 0.55) return "Good match";
+  if (score >= 0.4) return "Possible match";
+  return "Weak match";
+}
+
 function openRecall() {
   recallBackdrop.hidden = false;
   recallInput.focus();
@@ -1837,7 +1946,8 @@ async function runRecallSearch() {
       div.className = "recall-item";
       const score = document.createElement("div");
       score.className = "recall-score";
-      score.textContent = "score " + r.score.toFixed(3);
+      score.textContent = relevanceLabel(r.score);
+      score.title = "Similarity score: " + r.score.toFixed(3);
       const user = document.createElement("div");
       user.textContent = "You: " + r.user;
       const ai = document.createElement("div");
@@ -1882,6 +1992,7 @@ const memoryFormKey = document.getElementById("memory-form-key");
 const memoryFormValue = document.getElementById("memory-form-value");
 const memoryFormSave = document.getElementById("memory-form-save");
 const memoryFormStatus = document.getElementById("memory-form-status");
+const memorySummary = document.getElementById("memory-summary");
 
 async function forgetMemoryEntry(category, key) {
   try {
@@ -1909,16 +2020,21 @@ async function loadMemoryList() {
     const data = await res.json();
     memoryList.innerHTML = "";
     let anyEntries = false;
+    let totalEntries = 0;
+    let populatedCategories = 0;
+    const totalCategories = Object.keys(data).length;
 
     for (const category of Object.keys(data).sort()) {
       const entries = data[category];
       const keys = Object.keys(entries).sort();
       if (!keys.length) continue;
       anyEntries = true;
+      totalEntries += keys.length;
+      populatedCategories++;
 
       const heading = document.createElement("div");
       heading.className = "memory-category";
-      heading.textContent = category;
+      heading.textContent = category + " (" + keys.length + ")";
       memoryList.appendChild(heading);
 
       for (const key of keys) {
@@ -1955,15 +2071,21 @@ async function loadMemoryList() {
 
     if (!anyEntries) {
       memoryList.innerHTML = '<div class="memory-empty">Nothing stored yet.</div>';
+      memorySummary.textContent = "";
+    } else {
+      memorySummary.textContent = totalEntries + " fact" + (totalEntries === 1 ? "" : "s") +
+        " across " + populatedCategories + "/" + totalCategories + " categories";
     }
   } catch (e) {
     memoryList.innerHTML = '<div class="memory-empty">Could not reach ASTI.</div>';
+    memorySummary.textContent = "";
   }
 }
 
 function openMemory() {
   memoryBackdrop.hidden = false;
   memoryFormStatus.textContent = "";
+  memorySummary.textContent = "";
   loadMemoryList();
 }
 function closeMemory() {
@@ -2123,16 +2245,30 @@ document.addEventListener("keydown", (e) => {
 // small corner switch: "Cloud by choice" is the actual core feature of
 // this product (see CLAUDE.md's North Star), so it gets the most
 // prominent spot in the UI, not the same treatment as a utility button.
+// 10/14: mirrored into Settings too (same control, two locations) — both
+// stay in sync because they share one render/click path below.
 const cloudFeature = document.getElementById("cloud-feature");
 const cloudFeatureIcon = document.getElementById("cloud-feature-icon");
 const cloudFeatureLabel = document.getElementById("cloud-feature-label");
 
+const cloudToggleEls = [
+  { btn: cloudFeature, icon: cloudFeatureIcon, label: cloudFeatureLabel },
+  {
+    btn: document.getElementById("settings-cloud-toggle"),
+    icon: document.getElementById("settings-cloud-icon"),
+    label: document.getElementById("settings-cloud-label"),
+  },
+];
+
 function renderCloudToggle(allowCloud) {
-  cloudFeature.classList.toggle("on", allowCloud);
-  cloudFeature.setAttribute("aria-checked", allowCloud ? "true" : "false");
-  cloudFeature.dataset.allowCloud = allowCloud ? "1" : "0";
-  cloudFeatureIcon.innerHTML = allowCloud ? icon("cloud", 15) : icon("monitor", 15);
-  cloudFeatureLabel.textContent = allowCloud ? "Cloud Connected" : "Local Only";
+  for (const t of cloudToggleEls) {
+    if (!t.btn) continue;
+    t.btn.classList.toggle("on", allowCloud);
+    t.btn.setAttribute("aria-checked", allowCloud ? "true" : "false");
+    t.btn.dataset.allowCloud = allowCloud ? "1" : "0";
+    t.icon.innerHTML = allowCloud ? icon("cloud", 15) : icon("monitor", 15);
+    t.label.textContent = allowCloud ? "Cloud Connected" : "Local Only";
+  }
 }
 
 async function loadCloudToggle() {
@@ -2149,9 +2285,10 @@ async function loadCloudToggle() {
   }
 }
 
-cloudFeature.addEventListener("click", async () => {
-  const next = cloudFeature.dataset.allowCloud !== "1";
-  cloudFeature.disabled = true;
+async function setCloudAllowed(next) {
+  for (const t of cloudToggleEls) {
+    if (t.btn) t.btn.disabled = true;
+  }
   try {
     const res = await fetch("/api/settings/cloud", {
       method: "POST",
@@ -2165,11 +2302,159 @@ cloudFeature.addEventListener("click", async () => {
   } catch (e) {
     // leave the label as-is; user can retry the click
   } finally {
-    cloudFeature.disabled = false;
+    for (const t of cloudToggleEls) {
+      if (t.btn) t.btn.disabled = false;
+    }
+  }
+}
+
+for (const t of cloudToggleEls) {
+  if (t.btn) t.btn.addEventListener("click", () => setCloudAllowed(t.btn.dataset.allowCloud !== "1"));
+}
+
+loadCloudToggle();
+
+// --- Settings modal ---
+const settingsBackdrop = document.getElementById("settings-backdrop");
+const settingsOpen = document.getElementById("settings-open");
+const settingsClose = document.getElementById("settings-close");
+const settingsExportBtn = document.getElementById("settings-export");
+const settingsDataStatus = document.getElementById("settings-data-status");
+const settingsClearDocumentsBtn = document.getElementById("settings-clear-documents");
+const settingsClearMemoryBtn = document.getElementById("settings-clear-memory");
+const settingsClearConversationsBtn = document.getElementById("settings-clear-conversations");
+const settingsDangerStatus = document.getElementById("settings-danger-status");
+const settingsViewDiagnosticsBtn = document.getElementById("settings-view-diagnostics");
+
+let settingsDiagnostics = null;
+
+async function loadSettingsDiagnostics() {
+  try {
+    const res = await fetch("/api/status");
+    settingsDiagnostics = res.ok ? (await res.json()).data : null;
+  } catch (e) {
+    settingsDiagnostics = null;
+  }
+}
+
+function openSettings() {
+  settingsBackdrop.hidden = false;
+  settingsDataStatus.textContent = "";
+  settingsDangerStatus.textContent = "";
+  loadSettingsDiagnostics();
+}
+function closeSettings() {
+  settingsBackdrop.hidden = true;
+}
+
+settingsOpen.addEventListener("click", openSettings);
+settingsClose.addEventListener("click", closeSettings);
+settingsBackdrop.addEventListener("click", (e) => {
+  if (e.target === settingsBackdrop) closeSettings();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !settingsBackdrop.hidden) closeSettings();
+});
+
+settingsExportBtn.addEventListener("click", async () => {
+  settingsDataStatus.textContent = "Exporting…";
+  try {
+    const res = await fetch("/api/memory/export", { method: "POST" });
+    const data = await res.json();
+    settingsDataStatus.textContent = res.ok
+      ? "Exported to " + data.filename
+      : "Error: " + (data.error || res.statusText);
+  } catch (e) {
+    settingsDataStatus.textContent = "Could not reach ASTI.";
   }
 });
 
-loadCloudToggle();
+settingsClearDocumentsBtn.addEventListener("click", async () => {
+  const count = settingsDiagnostics ? settingsDiagnostics.documents_total : null;
+  if (count === 0) {
+    settingsDangerStatus.textContent = "There are no uploaded documents to clear.";
+    return;
+  }
+  const countText = count === null ? "" : ` (${count} file${count === 1 ? "" : "s"})`;
+  if (!confirm(`Remove all uploaded documents${countText}? Conversations themselves ` +
+    "are not affected. This cannot be undone.")) return;
+
+  settingsDangerStatus.textContent = "Clearing…";
+  try {
+    const res = await fetch("/api/documents", { method: "DELETE" });
+    const data = await res.json();
+    settingsDangerStatus.textContent = res.ok
+      ? `Cleared ${data.deleted} document(s).`
+      : "Error: " + (data.error || res.statusText);
+    loadSettingsDiagnostics();
+  } catch (e) {
+    settingsDangerStatus.textContent = "Could not reach ASTI.";
+  }
+});
+
+settingsClearMemoryBtn.addEventListener("click", async () => {
+  const count = settingsDiagnostics ? settingsDiagnostics.memory_entries : null;
+  if (count === 0) {
+    settingsDangerStatus.textContent = "There are no remembered facts to forget.";
+    return;
+  }
+  const countText = count === null ? "" : ` (${count})`;
+  if (!confirm(`Forget all remembered facts${countText}? Your conversations and ` +
+    "documents are not affected. This cannot be undone.")) return;
+
+  settingsDangerStatus.textContent = "Forgetting…";
+  try {
+    const res = await fetch("/api/memory");
+    const data = await res.json();
+    let removed = 0;
+    for (const category of Object.keys(data)) {
+      for (const key of Object.keys(data[category])) {
+        const r = await fetch("/api/memory/forget", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category, key }),
+        });
+        if (r.ok) removed++;
+      }
+    }
+    settingsDangerStatus.textContent = `Forgot ${removed} fact(s).`;
+    loadSettingsDiagnostics();
+  } catch (e) {
+    settingsDangerStatus.textContent = "Could not reach ASTI.";
+  }
+});
+
+settingsClearConversationsBtn.addEventListener("click", async () => {
+  const count = settingsDiagnostics ? settingsDiagnostics.conversations_total : null;
+  if (count === 0) {
+    settingsDangerStatus.textContent = "There are no conversations to delete.";
+    return;
+  }
+  const countText = count === null ? "" : ` (${count})`;
+  if (!confirm(`Delete all conversations${countText}? Their uploaded documents are ` +
+    "deleted too. Remembered facts are not affected. This cannot be undone.")) return;
+
+  settingsDangerStatus.textContent = "Deleting…";
+  try {
+    const res = await fetch("/api/conversations");
+    const data = await res.json();
+    let removed = 0;
+    for (const conv of data.conversations) {
+      const r = await fetch(`/api/conversations/${conv.id}`, { method: "DELETE" });
+      if (r.ok) removed++;
+    }
+    settingsDangerStatus.textContent = `Deleted ${removed} conversation(s).`;
+    loadSettingsDiagnostics();
+    startNewConversation();
+  } catch (e) {
+    settingsDangerStatus.textContent = "Could not reach ASTI.";
+  }
+});
+
+settingsViewDiagnosticsBtn.addEventListener("click", () => {
+  closeSettings();
+  openStatus();
+});
 </script>
 </body>
 </html>
