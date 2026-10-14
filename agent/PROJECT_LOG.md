@@ -2491,3 +2491,55 @@ rule that could've silently overridden the new class-based fill/stroke
 styling — none exists. Live server confirmed serving the updated page.
 The animation's actual motion/timing/feel — the one thing no structural
 check can confirm — is Carter's to watch in a real browser.
+
+## Scrolling a reopened (long) past chat
+
+### What happened
+Carter asked for scrolling to be added so chat history is scrollable
+"even for past chats." The page's scroll CSS was already correct
+end to end (`#messages` is `flex: 1; overflow-y: auto;` inside a
+properly height-bound `#app`/`#main` chain) — a static read of the CSS
+doesn't show a disabled-scroll bug. But two real, concrete things would
+make a long reopened conversation specifically feel broken or
+unresponsive to scroll, in a way a short or live one wouldn't, which
+matches "even for past chats":
+
+1. `.msg.ai` had `backdrop-filter: blur(12px)` applied **per message
+   bubble**. A live chat only ever has a handful of bubbles on screen;
+   reopening the real `legacy` conversation (114 turns, confirmed via
+   `/api/conversations/legacy`) renders well over 100 of them at once.
+   Per-element `backdrop-filter` is a known, well-documented GPU/
+   compositing cost that scales with element count — on a long history
+   this can make scrolling stutter or feel unresponsive. Removed from
+   `.msg.ai`; kept everywhere else (header/composer/sidebar/modals),
+   since those are one element each, not one per message.
+2. `openConversation()` replayed a past chat by calling the shared
+   `addMessage()` once per turn — and `addMessage()` always force-sets
+   `messagesEl.scrollTop` to the bottom internally (correct for live
+   chat, where that's wanted). For a 114-turn history that's 228 forced
+   scroll/reflow cycles back to back before the user can touch
+   anything. Now the replay loop detaches `#messages` from the page
+   first (`removeChild`), runs the same unmodified `addMessage()` calls
+   against it while detached — a detached node has no layout box, so
+   those internal scrollTop writes are free no-ops — then reattaches it
+   and does one real `scrollTop = scrollHeight` afterward. `addMessage()`
+   itself wasn't touched, so live-chat scrolling behavior (streaming a
+   new reply, scrolling down to follow it) is unchanged; this only
+   changes how bulk history replay happens, and the loop is fully
+   synchronous (no `await` inside it), so there's no window for anything
+   else to run mid-detachment.
+
+### Verification
+Full structural sweep: HTML-parser validity, brace/paren/bracket
+balance, full-script-block syntax via JavaScriptCore, and the
+`getElementById`-vs-`id=` cross-check (clean). Confirmed via the live
+`/api/conversations/legacy` endpoint that the real long conversation
+this fix targets does return all 114 turns, unaffected by the change
+(backend wasn't touched). The detach/reattach logic uses only standard
+`parentNode`/`nextSibling`/`removeChild`/`insertBefore` DOM calls with
+no async gap in between — not independently simulatable without a real
+browser's layout engine (JavaScriptCore has no DOM), so the actual
+scroll feel on the real `legacy` conversation is Carter's to confirm,
+same caveat as every GUI change this session. If scrolling still feels
+wrong after this, that would point at something other than these two
+causes and is worth another look.
