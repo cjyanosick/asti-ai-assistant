@@ -145,6 +145,41 @@
     color: var(--text-dim);
     margin-bottom: 4px;
   }
+  .memory-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .memory-chip-text {
+    flex: 1;
+  }
+  .memory-chip-btn {
+    border: none;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .memory-chip-save {
+    background: var(--accent);
+    color: #fff;
+  }
+  .memory-chip-discard {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .memory-chip-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
   .thinking {
     align-self: flex-start;
     color: var(--text-dim);
@@ -679,7 +714,7 @@ function renderMarkdown(text) {
   return html.join("\n");
 }
 
-function addMessage(role, text, intent) {
+function addMessage(role, text, intent, pendingMemory) {
   const div = document.createElement("div");
   div.className = "msg " + role;
   if (role === "ai") {
@@ -696,6 +731,14 @@ function addMessage(role, text, intent) {
     body.className = "msg-body";
     body.innerHTML = renderMarkdown(text);
     div.appendChild(body);
+
+    // Extraction-noise fix (10/13): personal_memory is never written
+    // silently anymore. When this turn extracted a candidate fact,
+    // /api/chat returns it unsaved as pendingMemory — show it here and
+    // only call /api/memory/confirm if the user actually clicks Save.
+    if (pendingMemory) {
+      div.appendChild(buildMemoryChip(pendingMemory));
+    }
   } else {
     div.textContent = text;
   }
@@ -716,6 +759,54 @@ function addMessage(role, text, intent) {
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return div;
+}
+
+function buildMemoryChip(pendingMemory) {
+  const chip = document.createElement("div");
+  chip.className = "memory-chip";
+
+  const text = document.createElement("span");
+  text.className = "memory-chip-text";
+  text.textContent =
+    `Remember ${pendingMemory.category} → ${pendingMemory.key} = ${pendingMemory.value}?`;
+  chip.appendChild(text);
+
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "memory-chip-btn memory-chip-save";
+  saveBtn.textContent = "Save";
+
+  const discardBtn = document.createElement("button");
+  discardBtn.className = "memory-chip-btn memory-chip-discard";
+  discardBtn.textContent = "Discard";
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    discardBtn.disabled = true;
+    try {
+      const res = await fetch("/api/memory/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pendingMemory),
+      });
+      text.textContent = res.ok
+        ? `Saved: ${pendingMemory.category}.${pendingMemory.key} = ${pendingMemory.value}`
+        : "Could not save — try the Memory panel instead.";
+    } catch (e) {
+      text.textContent = "Could not save — try the Memory panel instead.";
+    }
+    saveBtn.remove();
+    discardBtn.remove();
+  });
+
+  discardBtn.addEventListener("click", () => {
+    text.textContent = "Discarded.";
+    saveBtn.remove();
+    discardBtn.remove();
+  });
+
+  chip.appendChild(saveBtn);
+  chip.appendChild(discardBtn);
+  return chip;
 }
 
 function addThinking() {
@@ -779,7 +870,7 @@ async function sendMessage() {
     }
 
     const data = await res.json();
-    addMessage("ai", data.response, data.intent);
+    addMessage("ai", data.response, data.intent, data.pending_memory);
   } catch (e) {
     thinking.remove();
     addMessage("error", "Could not reach ASTI — is the server running?");
