@@ -2345,3 +2345,53 @@ syntax via JavaScriptCore, and a cross-check that every
 the updated page and `/api/status` throughout. Actual visual look and
 feel — especially the mirrored cloud toggle, the gear icon, and the
 danger-zone confirmations in a real browser — is Carter's to confirm.
+
+## "Show in Finder" — Data & Privacy section in Settings
+
+### What happened
+Carter asked whether a "go to my data" button is even possible — a
+browser page can't open a native file browser itself (sandboxed, for
+good reason: no website should be able to pop a user's Finder). But
+ASTI's backend is a local Flask process on the same machine as the
+browser, not a remote server, so it can run `open <path>` itself when
+asked. Asked what the best version of this looks like for a shipped
+product in this category; recommended the pattern privacy-forward
+local-data products use (Obsidian's vault location, 1Password's vault
+path): show the actual folder path as plain text — the real
+trust-builder, since it's proof of "local by default" even if no one
+ever clicks a button — with a "Show in Finder" button alongside as a
+convenience. Carter agreed; built it.
+
+### What changed
+`app.py`: `DATA_DIR = os.path.dirname(os.path.abspath(__file__))` — the
+`agent/` directory itself, where memory.json/personal_memory.json/
+documents.json/etc. actually live, not whatever the process's cwd
+happens to be. Two new routes: `GET /api/data-location` (returns the
+path) and `POST /api/data-location/reveal` (runs `open` on macOS,
+`explorer` on Windows, `xdg-open` elsewhere, against that fixed
+server-side path — never a user-supplied one). Settings panel gets a
+new "Data & Privacy" section, between the cloud toggle and Data
+management: the path in a monospace box, a reassuring line ("Your data
+lives here, encrypted, and stays on this device unless you turn Cloud
+on"), and the Show in Finder button.
+
+**Why this is safe here and wouldn't be elsewhere:** this only works
+because ASTI is bound to 127.0.0.1 and the browser and server are
+always the same machine, same user, same session — the server is
+opening its own machine's file browser to its own fixed path. The
+moment ASTI became a hosted/remote product (discussed earlier this
+session), this feature would have to be removed outright, not adapted —
+a remote server opening a file browser on someone else's request is a
+different, dangerous thing. Noted in both `app.py`'s comment and here.
+
+### Verification
+`GET /api/data-location` checked directly against the live server —
+correct path returned. `POST /api/data-location/reveal` was run for
+real (not just logic-checked) since it's non-destructive: it only pops
+a Finder window, touches no data, and is exactly what Carter asked to
+see working. Full structural sweep re-run after the change: HTML-parser
+validity, brace/paren/bracket balance, full-script-block syntax via
+JavaScriptCore, and the `getElementById`-vs-`id=` cross-check (clean).
+Live server confirmed serving the updated page throughout. Actual
+Finder-window appearance is Carter's to confirm, same caveat as every
+GUI change this session.

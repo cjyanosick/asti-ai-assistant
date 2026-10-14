@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 from flask import Flask, request, jsonify, send_from_directory
 
 from llm import (
@@ -28,6 +32,13 @@ app = Flask(__name__, static_folder="static", static_url_path="")
 # requirement at personal-use scale, just good practice for a multipart
 # endpoint. The real per-prompt cap is MAX_FILE_READ_CHARS in config.py.
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
+# Where memory.json/personal_memory.json/documents.json/etc. actually live —
+# the agent/ directory itself, not whatever the process's cwd happens to be.
+# Backs the Settings panel's "Data & Privacy" section (10/14): showing this
+# path, and a button to open it, is a trust/transparency feature — proof the
+# North Star's "local by default" is literally true, not just a claim.
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @app.route("/")
@@ -275,6 +286,31 @@ def get_status():
     # Both come from the same source of truth (_collect_diagnostics in
     # llm.py) — config/counts only, never content (roadmap #6).
     return jsonify({"report": build_diagnostics_report(), "data": build_diagnostics_data()})
+
+
+@app.route("/api/data-location", methods=["GET"])
+def data_location():
+    return jsonify({"path": DATA_DIR})
+
+
+@app.route("/api/data-location/reveal", methods=["POST"])
+def reveal_data_location():
+    # Only makes sense because this is a local, single-user, 127.0.0.1-only
+    # app running on the same machine as the browser — the server opens its
+    # own machine's file browser to its own fixed, server-side path, never a
+    # user-supplied one. This stops being safe the moment ASTI is anything
+    # other than that (see CLAUDE.md's go-to-market notes on a hosted
+    # version) — it would have to be removed, not adapted, for that case.
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["open", DATA_DIR], check=True)
+        elif sys.platform.startswith("win"):
+            subprocess.run(["explorer", DATA_DIR], check=True)
+        else:
+            subprocess.run(["xdg-open", DATA_DIR], check=True)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
