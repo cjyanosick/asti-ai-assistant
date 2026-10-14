@@ -144,6 +144,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .conversation-title-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    color: var(--text);
+    font: inherit;
+    padding: 2px 5px;
+    outline: none;
+  }
   .conversation-actions {
     display: flex;
     align-items: center;
@@ -1079,6 +1090,7 @@
 </div>
 
 <div id="conv-menu" class="conv-menu" hidden>
+  <button id="conv-menu-rename" class="conv-menu-item"></button>
   <button id="conv-menu-pin" class="conv-menu-item"></button>
   <button id="conv-menu-delete" class="conv-menu-item danger"></button>
 </div>
@@ -1730,6 +1742,7 @@ function buildConversationItem(conv) {
   const item = document.createElement("div");
   item.className = "conversation-item" + (conv.id === activeConversationId ? " active" : "");
   item.title = conv.title;
+  item.dataset.convId = conv.id;
   item.addEventListener("click", () => openConversation(conv.id));
 
   // Right-click anywhere on the item opens the same menu as the "..."
@@ -1805,6 +1818,64 @@ async function toggleConversationPin(id, pinned) {
   }
 }
 
+async function renameConversationTitle(id, title) {
+  try {
+    const res = await fetch(`/api/conversations/${id}/title`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+// In-place rename, Finder/ChatGPT-sidebar-style: the title span is swapped
+// for a text input right in the row, not a modal — a rename is small and
+// quick enough that a popup would be more friction than the task itself.
+function startRenameConversation(conv) {
+  const item = conversationListEl.querySelector(`[data-conv-id="${conv.id}"]`);
+  const titleEl = item && item.querySelector(".conversation-title");
+  if (!titleEl) return;
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "conversation-title-input";
+  input.value = conv.title;
+  input.addEventListener("click", (e) => e.stopPropagation());
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  async function commit() {
+    if (settled) return;
+    settled = true;
+    const next = input.value.trim();
+    if (next && next !== conv.title) {
+      await renameConversationTitle(conv.id, next);
+    }
+    loadConversationList();
+  }
+  function cancel() {
+    if (settled) return;
+    settled = true;
+    loadConversationList();
+  }
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.blur();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener("blur", commit);
+}
+
 async function deleteConversationItem(id, title) {
   const shortTitle = title.length > 60 ? title.slice(0, 60) + "…" : title;
   if (!confirm(`Delete "${shortTitle}"? This can't be undone.`)) return;
@@ -1827,12 +1898,14 @@ async function deleteConversationItem(id, title) {
 // One shared menu element, positioned on demand — opened by the "..."
 // button or by right-clicking a chat, same destination either way.
 const convMenu = document.getElementById("conv-menu");
+const convMenuRename = document.getElementById("conv-menu-rename");
 const convMenuPin = document.getElementById("conv-menu-pin");
 const convMenuDelete = document.getElementById("conv-menu-delete");
 let convMenuTarget = null;
 
 function openConvMenu(x, y, conv) {
   convMenuTarget = conv;
+  convMenuRename.innerHTML = icon("edit", 14) + " Rename";
   convMenuPin.innerHTML = icon("pin", 14) + (conv.pinned ? " Unpin" : " Pin");
   convMenuDelete.innerHTML = icon("trash", 14) + " Delete";
 
@@ -1853,6 +1926,12 @@ function closeConvMenu() {
   convMenu.hidden = true;
   convMenuTarget = null;
 }
+
+convMenuRename.addEventListener("click", () => {
+  if (!convMenuTarget) return;
+  startRenameConversation(convMenuTarget);
+  closeConvMenu();
+});
 
 convMenuPin.addEventListener("click", () => {
   if (!convMenuTarget) return;
