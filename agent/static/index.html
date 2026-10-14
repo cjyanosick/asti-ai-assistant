@@ -719,7 +719,7 @@
   #send:not(:disabled):active {
     transform: scale(0.97);
   }
-  #attach {
+  #attach, #documents-open {
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--text);
@@ -732,11 +732,11 @@
     flex-shrink: 0;
     transition: background-color 0.15s ease, border-color 0.15s ease;
   }
-  #attach:hover {
+  #attach:hover, #documents-open:hover {
     background: rgba(255, 255, 255, 0.06);
     border-color: #3d3d3d;
   }
-  #attach:disabled {
+  #attach:disabled, #documents-open:disabled {
     opacity: 0.5;
     cursor: default;
   }
@@ -1136,6 +1136,7 @@
     </div>
     <div id="composer">
       <button id="attach" title="Attach a file"></button>
+      <button id="documents-open" title="Documents in this chat"></button>
       <input id="file-input" type="file" hidden multiple>
       <textarea id="input" rows="1" placeholder="Message ASTI..."></textarea>
       <button id="send">Send</button>
@@ -1293,6 +1294,18 @@
   </div>
 </div>
 
+<div id="documents-backdrop" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Documents in this chat</h2>
+      <button id="documents-close" class="modal-close"></button>
+    </div>
+    <p class="panel-intro">Files uploaded to this conversation — searched automatically
+      when you ask about them, never shared with any other chat.</p>
+    <div id="documents-list" style="overflow-y: auto;"></div>
+  </div>
+</div>
+
 <script>
 const messagesEl = document.getElementById("messages");
 const inputEl = document.getElementById("input");
@@ -1418,6 +1431,10 @@ const ICONS = {
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>',
   upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 112.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/>',
+  file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>' +
+    '<polyline points="14 2 14 8 20 8"/>' +
+    '<line x1="16" y1="13" x2="8" y2="13"/>' +
+    '<line x1="16" y1="17" x2="8" y2="17"/>',
 };
 
 function icon(name, size) {
@@ -1437,10 +1454,12 @@ document.getElementById("recall-open").innerHTML = icon("search");
 document.getElementById("settings-open").innerHTML = icon("settings");
 document.getElementById("reference-clear").innerHTML = icon("x", 14);
 document.getElementById("attach").innerHTML = icon("paperclip");
+document.getElementById("documents-open").innerHTML = icon("file");
 document.getElementById("status-close").innerHTML = icon("x", 18);
 document.getElementById("memory-close").innerHTML = icon("x", 18);
 document.getElementById("recall-close").innerHTML = icon("x", 18);
 document.getElementById("settings-close").innerHTML = icon("x", 18);
+document.getElementById("documents-close").innerHTML = icon("x", 18);
 document.getElementById("drop-overlay-icon").innerHTML = icon("upload", 32);
 
 function buildSourceBadge(source) {
@@ -1726,6 +1745,90 @@ fileInputEl.addEventListener("change", () => {
   const files = Array.from(fileInputEl.files);
   fileInputEl.value = ""; // allow re-selecting the same file(s) later
   uploadFiles(files);
+});
+
+// --- Documents panel (10/14) — browse/delete what's uploaded to the
+// active chat. Scoped to activeConversationId, same boundary as upload
+// and ambient document search; reuses the Memory panel's row/empty-state
+// CSS rather than duplicating it, since the look is identical.
+const documentsBackdrop = document.getElementById("documents-backdrop");
+const documentsOpenBtn = document.getElementById("documents-open");
+const documentsCloseBtn = document.getElementById("documents-close");
+const documentsListEl = document.getElementById("documents-list");
+
+function fmtUploadedAt(iso) {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+  } catch (e) {
+    return iso;
+  }
+}
+
+async function loadDocumentsList() {
+  documentsListEl.innerHTML = '<div class="memory-empty">Loading…</div>';
+  try {
+    const res = await fetch(`/api/conversations/${activeConversationId}/documents`);
+    if (!res.ok) {
+      documentsListEl.innerHTML = '<div class="memory-empty">Could not load documents.</div>';
+      return;
+    }
+    const data = await res.json();
+    documentsListEl.innerHTML = "";
+
+    if (!data.documents.length) {
+      documentsListEl.innerHTML = '<div class="memory-empty">No documents in this chat yet.</div>';
+      return;
+    }
+
+    for (const doc of data.documents) {
+      const row = document.createElement("div");
+      row.className = "memory-row";
+
+      const kv = document.createElement("div");
+      kv.className = "memory-kv";
+      kv.innerHTML = escapeHtml(doc.filename) +
+        '<span class="memory-key"> — ' + doc.chunk_count + " chunk" +
+        (doc.chunk_count === 1 ? "" : "s") + ", uploaded " +
+        escapeHtml(fmtUploadedAt(doc.uploaded_at)) + "</span>";
+      row.appendChild(kv);
+
+      const delBtn = document.createElement("button");
+      delBtn.innerHTML = icon("trash", 13);
+      delBtn.title = "Delete";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Remove "${doc.filename}" from this chat? This cannot be undone.`)) return;
+        const r = await fetch(
+          `/api/conversations/${activeConversationId}/documents/${doc.id}`,
+          { method: "DELETE" }
+        );
+        if (r.ok) loadDocumentsList();
+      });
+      row.appendChild(delBtn);
+
+      documentsListEl.appendChild(row);
+    }
+  } catch (e) {
+    documentsListEl.innerHTML = '<div class="memory-empty">Could not reach ASTI.</div>';
+  }
+}
+
+function openDocuments() {
+  documentsBackdrop.hidden = false;
+  loadDocumentsList();
+}
+function closeDocuments() {
+  documentsBackdrop.hidden = true;
+}
+
+documentsOpenBtn.addEventListener("click", openDocuments);
+documentsCloseBtn.addEventListener("click", closeDocuments);
+documentsBackdrop.addEventListener("click", (e) => {
+  if (e.target === documentsBackdrop) closeDocuments();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !documentsBackdrop.hidden) closeDocuments();
 });
 
 // --- Drag and drop (10/14): drop files anywhere in the window to upload

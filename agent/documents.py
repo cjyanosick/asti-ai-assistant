@@ -121,6 +121,23 @@ def delete_documents_for_conversation(conversation_id):
     return len(doc_ids)
 
 
+def delete_document(conversation_id, doc_id):
+    # Single-document delete (10/14) — the GUI's new per-chat Documents
+    # panel. Scoped to conversation_id on purpose, same reasoning as every
+    # other document boundary in this file: a doc_id alone shouldn't be
+    # enough to delete something from a chat you're not even looking at.
+    store = _load_store()
+    doc = store["documents"].get(doc_id)
+
+    if doc is None or doc["conversation_id"] != conversation_id:
+        return False
+
+    del store["documents"][doc_id]
+    store["chunks"] = [c for c in store["chunks"] if c["doc_id"] != doc_id]
+    _save_store(store)
+    return True
+
+
 def delete_all_documents():
     # Settings panel's "Clear uploaded documents" (10/14) — unlike chat
     # deletion, this only touches documents.json; conversations and their
