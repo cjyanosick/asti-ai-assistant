@@ -493,8 +493,14 @@
   .msg.ai {
     align-self: flex-start;
     background: var(--ai-bubble);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    /* No backdrop-filter here (10/14, removed) — it was applied per
+       bubble, so a long reopened conversation (dozens to 100+ AI
+       messages) forced the browser to composite that many separate blur
+       layers at once. That's a well-known GPU/scroll-jank source that
+       gets worse exactly as history gets longer — i.e. it could read as
+       "can't scroll" on a long past chat specifically, which is what
+       this was reported as. The header/composer/sidebar/modals keep
+       their blur; those are one element each, not one per message. */
     border: 1px solid var(--border);
     border-bottom-left-radius: 4px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
@@ -2010,10 +2016,24 @@ async function openConversation(id) {
     messagesEl.innerHTML = "";
     clearReference();
 
+    // Replay detached from the page (10/14): addMessage() always forces
+    // messagesEl.scrollTop to the bottom internally — right for live
+    // chat, but it means a long reopened history (100+ turns) forces
+    // that many scrolls/reflows back to back before the user can touch
+    // anything. A detached node has no layout box, so those calls are
+    // free no-ops during the loop; one real scroll-to-bottom happens
+    // after it's reattached, handing scroll control back immediately.
+    const mainEl = messagesEl.parentNode;
+    const nextSibling = messagesEl.nextSibling;
+    mainEl.removeChild(messagesEl);
+
     for (const turn of data.turns) {
       addMessage("user", turn.user);
       addMessage("ai", turn.ai, null, null, turn.source);
     }
+
+    mainEl.insertBefore(messagesEl, nextSibling);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
 
     loadConversationList();
     inputEl.focus();
