@@ -11,7 +11,14 @@ def _now():
 
 
 def _new_conversation(conv_id, now):
-    return {"id": conv_id, "title": None, "created_at": now, "updated_at": now, "turns": []}
+    return {
+        "id": conv_id,
+        "title": None,
+        "created_at": now,
+        "updated_at": now,
+        "pinned": False,
+        "turns": [],
+    }
 
 
 def _load_store():
@@ -36,6 +43,7 @@ def _load_store():
                     "title": "Earlier conversation",
                     "created_at": now,
                     "updated_at": now,
+                    "pinned": False,
                     "turns": raw,
                 }
             }
@@ -63,9 +71,12 @@ def get_conversation(conv_id):
 
 
 def list_conversations():
-    # Sidebar listing, newest first. Only conversations with at least one
-    # turn — an empty "New Chat" the user never used isn't a real
-    # conversation worth showing, same as ChatGPT's own sidebar.
+    # Sidebar listing. Only conversations with at least one turn — an
+    # empty "New Chat" the user never used isn't a real conversation
+    # worth showing, same as ChatGPT's own sidebar. Pinned conversations
+    # sort first (newest-pinned first), then everything else, newest
+    # first — `.get("pinned", False)` because conversations created
+    # before the pin feature existed have no "pinned" key at all.
     store = _load_store()
     items = [
         {
@@ -73,12 +84,40 @@ def list_conversations():
             "title": c["title"] or "New chat",
             "created_at": c["created_at"],
             "updated_at": c["updated_at"],
+            "pinned": c.get("pinned", False),
         }
         for c in store["conversations"].values()
         if c["turns"]
     ]
+    # Stable-sort trick: sort by the secondary key first (newest first
+    # within each group), then by the primary key (pinned first) — the
+    # second sort preserves the newest-first order within each group
+    # since Python's sort is stable.
     items.sort(key=lambda c: c["updated_at"], reverse=True)
+    items.sort(key=lambda c: c["pinned"], reverse=True)
     return items
+
+
+def delete_conversation(conv_id):
+    store = _load_store()
+
+    if conv_id not in store["conversations"]:
+        return False
+
+    del store["conversations"][conv_id]
+    _save_store(store)
+    return True
+
+
+def set_conversation_pinned(conv_id, pinned):
+    store = _load_store()
+
+    if conv_id not in store["conversations"]:
+        return False
+
+    store["conversations"][conv_id]["pinned"] = bool(pinned)
+    _save_store(store)
+    return True
 
 
 def load_memory(conv_id):

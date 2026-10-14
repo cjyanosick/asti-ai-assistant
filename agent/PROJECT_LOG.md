@@ -1914,3 +1914,65 @@ this time was actually correct and on-topic (model stochasticity — it
 doesn't fail the same way every time). The fix doesn't depend on the
 failure reproducing every run; it's a structural reliability
 improvement for a known-weaker path, not a patch for one bad output.
+
+## Milestone: sidebar delete/pin, icon toolbar, logo mark, cloud feature redesign
+
+### What Carter asked for
+Five things in one GUI pass: (1) delete capability for sidebar chats,
+(2) a pin feature, (3) a completely different look for the Status/
+Memory/Recall buttons, (4) make "ASTI" read as a logo rather than plain
+text, (5) center the cloud toggle in the header and make it the visual
+centerpiece — his words, "because it is" (the main feature).
+
+### Backend
+- `memory.py`: conversations now carry a `pinned` bool (defaults False;
+  `.get("pinned", False)` used everywhere reading it, since conversations
+  created before this change — including `"legacy"` — have no such key
+  on disk). New `delete_conversation()`, `set_conversation_pinned()`.
+  `list_conversations()` sorts pinned-first via Python's stable sort
+  (sort by `updated_at` descending, then by `pinned` descending — the
+  second sort preserves the first's ordering within each group).
+- `app.py`: `DELETE /api/conversations/<id>`, `POST
+  /api/conversations/<id>/pin` ({"pinned": bool}).
+
+### Frontend
+- Sidebar items: pin (📌) and delete (🗑) icon buttons. Pin is always
+  visible when pinned (accent-colored), otherwise hover-reveal like the
+  existing reply-button pattern; delete is hover-reveal with a native
+  `confirm()` before it actually deletes — this is real, unrecoverable
+  data loss, not something to fire on a single misclick. Pinned
+  conversations render under a small "Pinned" section label, ahead of
+  everything else.
+- Header rebuilt as a 3-column grid (`1fr auto 1fr`) instead of a single
+  flex row: logo on the left, the cloud feature centered in the middle
+  column regardless of how wide either side is, utility icons on the
+  right.
+- Status/Memory/Recall: `.header-btn` (outlined text pills) replaced
+  entirely with `.icon-btn` — plain icon, no border, a soft hover
+  highlight circle, native `title` tooltip instead of visible text. A
+  genuinely different treatment, not a palette tweak.
+- Logo: inline SVG "sparkle" mark (gradient-filled, a common AI-product
+  glyph) to the left of a bold "ASTI" wordmark, replacing the plain
+  gradient-text `<h1>` from the previous visual pass — reads as an
+  actual logo lockup now, not styled text.
+- Cloud toggle: completely rebuilt as `.cloud-feature`, a centered pill
+  with an icon (🖥️/☁️) and label ("Local Only"/"Cloud Connected") plus a
+  larger, more tactile switch — replacing the old small corner
+  switch-and-label pair. Carter's reasoning for the emphasis: cloud
+  on/off is the actual core feature of the product per the North Star
+  ("Cloud by choice"), not a secondary setting, so it gets the most
+  visually prominent spot in the header, not the same treatment as a
+  utility toggle.
+
+### Verification
+Backend: pin → appears pinned at the top of the list; unpin → reverts;
+delete → 404 on both the deleted conversation and a nonexistent one,
+real conversations list unaffected afterward (same 5 real conversations,
+same order, confirmed via the live server, not just the test client).
+Frontend: CSS brace balance, JS balance, and HTML-parser validity all
+re-checked after the full header/sidebar rework; every element id
+referenced by JS (including the rebuilt cloud-feature ids) confirmed
+present exactly once in the markup; confirmed no leftover references to
+the removed old switch/label element ids. No browser automation
+available in-session — as with every visual change this session, the
+actual look is Carter's call once he's seen it.
