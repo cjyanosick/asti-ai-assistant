@@ -2040,3 +2040,93 @@ Added `#reference-chip[hidden] { display: none; }`, the exact pattern
 already correctly used for `.conv-menu[hidden]` and
 `.modal-backdrop[hidden]` elsewhere in the same file — those two should
 have been the template from the start.
+
+## Milestone: multi-document upload and cross-document querying
+
+### What Carter asked for
+Asked how many files could be uploaded for the local model to
+summarize/go through — answer at the time was "one, capped at 8,000
+characters, no cross-file querying." Asked to build real support for
+this "even if it's a big project," specifically tied to the North
+Star's lawyer-with-hundreds-of-case-files scenario.
+
+### Design, stated before building
+- Multiple files at once (browser picker gets `multiple`), uploaded
+  sequentially, not in parallel — avoids racing writes to the single
+  `documents.json` store.
+- Each file is chunked and embedded in full, not capped at the existing
+  8,000-char summary limit — that cap was only ever meant for one quick
+  read, not real document storage.
+- Documents are scoped to the conversation they're uploaded into, same
+  split as conversation-recall: ambient retrieval during chat only
+  searches the active conversation's documents (a different case's
+  files never bleed into this chat's answers — a correctness/liability
+  boundary for the lawyer scenario, not just consistency for its own
+  sake). A global cross-chat document search could be a separate
+  explicit tool later, mirroring the Recall panel's split from ambient
+  chat-recall.
+- Stays fully local — document content never reaches a cloud-bound mode,
+  same as the existing "file reads never leave the machine" rule. Only
+  `ask_llm()`'s always-local `chat` branch sees document context.
+
+### What changed
+- New `documents.py`: `chunk_text()` (1500-char chunks, 200-char overlap,
+  breaks on a paragraph/sentence boundary near the target size when one
+  exists), `add_document()`, `list_documents()`, `search_documents()`
+  (cosine similarity, scoped to one conversation, reuses
+  `memory.py`'s `_cosine_similarity` rather than duplicating it). New
+  `documents.json` — added to `.gitignore` immediately, before it could
+  ever hold real uploaded content.
+- `llm.py`'s `_summarize_file_content()` now chunks/embeds/stores the
+  full original content alongside generating the existing (still
+  truncated) immediate summary — two different things with two
+  different limits now, not one. `ask_llm()`'s `chat` branch gained a
+  `document_block`, built the same way as the existing conversation-
+  recall `related_block`: embed the question, search this conversation's
+  document chunks, keep only matches scoring ≥0.5, inject with
+  instructions to cite the filename and never invent content beyond
+  what's shown.
+- `app.py`: new `GET /api/conversations/<id>/documents` for visibility
+  into what's been stored (no dedicated GUI panel yet, but the data's
+  there for one later with no backend work needed).
+- `index.html`: file input gained `multiple`; the upload handler now
+  loops over every selected file and awaits each one in turn before
+  starting the next.
+
+### Verification
+All with synthetic test files (a fake contract and a fake recipe, never
+real documents), cleaned up completely afterward — `documents.json`
+deleted outright each time (confirmed it didn't exist before any test
+began, so this was always safe), test conversations removed from the
+real `memory.json`, real conversation count and `legacy`'s 114 turns
+confirmed unchanged throughout.
+1. Uploaded both test files through the real pipeline — correct
+   summaries, 2 chunks each stored.
+2. Queried `search_documents()` directly for "contract value" and for
+   "banana bread baking time" — each correctly ranked its own document's
+   chunks above 0.5 and the *other* document's chunks below it,
+   confirming cross-document isolation actually works, not just in
+   theory.
+3. Full `ask_llm()` chat-path test: asked about the contract's value and
+   its termination clause — both answered correctly, citing the
+   filename. Asked an unanswerable question ("what color is the car in
+   my documents") — correctly said it had no such information rather
+   than inventing one (though it volunteered an unrelated real fact from
+   personal memory alongside — expected, since `chat` mode always loads
+   personal memory too; not a bug, just two context sources answering
+   together).
+4. Full live HTTP round trip through the running server — upload,
+   `GET .../documents` listing, then a chat question — all correct.
+   Note: the model didn't always literally name the filename in its
+   citation (said "the summary I provided" once instead of the filename)
+   despite the explicit instruction to — minor instruction-following
+   looseness, not a correctness problem (the fact itself was right), and
+   not worth chasing per this project's established "don't chase
+   prompt-tuning whack-a-mole" rule.
+
+### Known scope cuts, not started
+No dedicated GUI panel for browsing/deleting uploaded documents yet
+(the listing endpoint exists for one later). No cross-conversation
+document search tool (ambient retrieval is conversation-scoped only, by
+design — see above). No chunk/document deletion function yet — nothing
+calls it, so it wasn't built ahead of an actual need.
