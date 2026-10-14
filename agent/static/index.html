@@ -116,14 +116,14 @@
     gap: 2px;
   }
   .conversation-item {
-    padding: 9px 10px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 9px 6px 9px 10px;
     border-radius: 8px;
     font-size: 13px;
     color: var(--text-dim);
     cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     transition: background-color 0.15s ease, color 0.15s ease;
   }
   .conversation-item:hover {
@@ -134,6 +134,55 @@
     background: linear-gradient(135deg, rgba(240, 160, 106, 0.22), rgba(217, 100, 63, 0.10));
     color: var(--text);
     box-shadow: inset 0 0 0 1px rgba(232, 128, 92, 0.25);
+  }
+  .conversation-title {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .conversation-actions {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    flex-shrink: 0;
+  }
+  .conv-action-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+  .conversation-item:hover .conv-action-btn {
+    opacity: 1;
+  }
+  .conv-action-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: var(--text);
+  }
+  .conv-action-btn.pinned {
+    opacity: 1;
+    color: var(--accent);
+  }
+  .conversation-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    padding: 10px 10px 4px;
+  }
+  .conversation-section-label:first-child {
+    padding-top: 2px;
   }
   .conversation-empty {
     color: var(--text-dim);
@@ -148,17 +197,30 @@
     min-width: 0;
   }
   header {
-    padding: 14px 20px;
+    padding: 12px 20px;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    gap: 10px;
     flex-shrink: 0;
     position: relative;
     z-index: 1;
+  }
+  .header-left {
+    justify-self: start;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .header-right {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 2px;
   }
   #sidebar-toggle {
     background: transparent;
@@ -176,15 +238,98 @@
     background: rgba(255, 255, 255, 0.06);
     color: var(--text);
   }
-  header h1 {
-    font-size: 17px;
-    font-weight: 700;
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 0;
-    letter-spacing: 0.01em;
+  }
+  .logo-mark { flex-shrink: 0; filter: drop-shadow(0 0 6px rgba(232, 128, 92, 0.35)); }
+  .logo-text {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  }
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+  }
+  .icon-btn:active { transform: scale(0.92); }
+  .cloud-feature {
+    justify-self: center;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 10px 7px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .cloud-feature:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .cloud-feature.on {
+    background: linear-gradient(135deg, rgba(240, 160, 106, 0.18), rgba(217, 100, 63, 0.08));
+    border-color: rgba(232, 128, 92, 0.4);
+    box-shadow: 0 2px 16px rgba(232, 128, 92, 0.2);
+  }
+  .cloud-feature:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .cloud-feature-icon { font-size: 15px; }
+  .cloud-feature-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .cloud-feature.on .cloud-feature-label { color: var(--text); }
+  .switch-lg {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .cloud-feature.on .switch-lg {
     background: var(--accent-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    border-color: transparent;
+    box-shadow: 0 2px 10px rgba(232, 128, 92, 0.35);
+  }
+  .switch-thumb-lg {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease;
+  }
+  .cloud-feature.on .switch-thumb-lg {
+    transform: translateX(20px);
   }
   #messages {
     flex: 1;
@@ -449,65 +594,6 @@
     opacity: 0.5;
     cursor: default;
   }
-  .header-btn {
-    margin-left: auto;
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 9px;
-    padding: 6px 12px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-  }
-  .header-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: #3d3d3d;
-  }
-  .switch-group {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .switch-label {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .switch {
-    position: relative;
-    width: 40px;
-    height: 22px;
-    padding: 0;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--bg);
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
-  }
-  .switch.on {
-    background: var(--accent-gradient);
-    border-color: var(--accent);
-    box-shadow: 0 2px 10px rgba(232, 128, 92, 0.3);
-  }
-  .switch:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-  .switch-thumb {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #fff;
-    transition: transform 0.2s ease;
-  }
-  .switch.on .switch-thumb {
-    transform: translateX(18px);
-  }
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -736,18 +822,37 @@
   </nav>
   <div id="main">
     <header>
-      <button id="sidebar-toggle" title="Show sidebar" hidden>☰</button>
-      <h1>ASTI</h1>
-      <div class="switch-group">
-        <span id="cloud-switch-label" class="switch-label">Cloud</span>
-        <button id="cloud-toggle" class="switch" role="switch" aria-checked="false"
-          title="Toggle whether general-knowledge questions can reach the cloud">
-          <span class="switch-thumb"></span>
-        </button>
+      <div class="header-left">
+        <button id="sidebar-toggle" title="Show sidebar" hidden>☰</button>
+        <h1 class="logo">
+          <svg class="logo-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <defs>
+              <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f0a06a"/>
+                <stop offset="100%" stop-color="#d9643f"/>
+              </linearGradient>
+            </defs>
+            <path fill="url(#logoGradient)"
+              d="M12 0C12 6 18 12 24 12C18 12 12 18 12 24C12 18 6 12 0 12C6 12 12 6 12 0Z"/>
+          </svg>
+          <span class="logo-text">ASTI</span>
+        </h1>
       </div>
-      <button id="status-open" class="header-btn">📊 Status</button>
-      <button id="memory-open" class="header-btn">🧠 Memory</button>
-      <button id="recall-open" class="header-btn">🔍 Recall</button>
+
+      <button id="cloud-feature" class="cloud-feature" role="switch" aria-checked="false"
+        title="Toggle whether general-knowledge and code questions can reach the cloud">
+        <span id="cloud-feature-icon" class="cloud-feature-icon">🖥️</span>
+        <span id="cloud-feature-label" class="cloud-feature-label">Local Only</span>
+        <span class="switch-lg">
+          <span class="switch-thumb-lg"></span>
+        </span>
+      </button>
+
+      <div class="header-right">
+        <button id="status-open" class="icon-btn" title="Diagnostics">📊</button>
+        <button id="memory-open" class="icon-btn" title="Personal Memory">🧠</button>
+        <button id="recall-open" class="icon-btn" title="Semantic Recall">🔍</button>
+      </div>
     </header>
     <div id="messages"></div>
     <div id="reference-chip" hidden>
@@ -1194,6 +1299,44 @@ async function loadConversationList() {
   }
 }
 
+function buildConversationItem(conv) {
+  const item = document.createElement("div");
+  item.className = "conversation-item" + (conv.id === activeConversationId ? " active" : "");
+  item.title = conv.title;
+  item.addEventListener("click", () => openConversation(conv.id));
+
+  const title = document.createElement("span");
+  title.className = "conversation-title";
+  title.textContent = conv.title;
+  item.appendChild(title);
+
+  const actions = document.createElement("div");
+  actions.className = "conversation-actions";
+
+  const pinBtn = document.createElement("button");
+  pinBtn.className = "conv-action-btn" + (conv.pinned ? " pinned" : "");
+  pinBtn.title = conv.pinned ? "Unpin" : "Pin";
+  pinBtn.textContent = "📌";
+  pinBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleConversationPin(conv.id, !conv.pinned);
+  });
+  actions.appendChild(pinBtn);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "conv-action-btn";
+  deleteBtn.title = "Delete chat";
+  deleteBtn.textContent = "🗑";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    deleteConversationItem(conv.id, conv.title);
+  });
+  actions.appendChild(deleteBtn);
+
+  item.appendChild(actions);
+  return item;
+}
+
 function renderConversationList(conversations) {
   conversationListEl.innerHTML = "";
 
@@ -1205,13 +1348,52 @@ function renderConversationList(conversations) {
     return;
   }
 
-  for (const conv of conversations) {
-    const item = document.createElement("div");
-    item.className = "conversation-item" + (conv.id === activeConversationId ? " active" : "");
-    item.textContent = conv.title;
-    item.title = conv.title;
-    item.addEventListener("click", () => openConversation(conv.id));
-    conversationListEl.appendChild(item);
+  const pinned = conversations.filter((c) => c.pinned);
+  const rest = conversations.filter((c) => !c.pinned);
+
+  if (pinned.length) {
+    const label = document.createElement("div");
+    label.className = "conversation-section-label";
+    label.textContent = "Pinned";
+    conversationListEl.appendChild(label);
+    for (const conv of pinned) {
+      conversationListEl.appendChild(buildConversationItem(conv));
+    }
+  }
+
+  for (const conv of rest) {
+    conversationListEl.appendChild(buildConversationItem(conv));
+  }
+}
+
+async function toggleConversationPin(id, pinned) {
+  try {
+    await fetch(`/api/conversations/${id}/pin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned }),
+    });
+    loadConversationList();
+  } catch (e) {
+    // List just won't update — not fatal.
+  }
+}
+
+async function deleteConversationItem(id, title) {
+  const shortTitle = title.length > 60 ? title.slice(0, 60) + "…" : title;
+  if (!confirm(`Delete "${shortTitle}"? This can't be undone.`)) return;
+
+  try {
+    const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
+
+    if (id === activeConversationId) {
+      startNewConversation();
+    } else {
+      loadConversationList();
+    }
+  } catch (e) {
+    // List just won't update — not fatal.
   }
 }
 
@@ -1542,39 +1724,39 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !statusBackdrop.hidden) closeStatus();
 });
 
-// --- Cloud toggle --- a real sliding switch, not a text-label button: a
-// button reading "OFF" is ambiguous (is that the current state, or an
-// instruction to turn it off?). A switch's position IS the state.
-const cloudToggle = document.getElementById("cloud-toggle");
-const cloudSwitchLabel = document.getElementById("cloud-switch-label");
+// --- Cloud toggle — redesigned 10/14 as the header's centerpiece, not a
+// small corner switch: "Cloud by choice" is the actual core feature of
+// this product (see CLAUDE.md's North Star), so it gets the most
+// prominent spot in the UI, not the same treatment as a utility button.
+const cloudFeature = document.getElementById("cloud-feature");
+const cloudFeatureIcon = document.getElementById("cloud-feature-icon");
+const cloudFeatureLabel = document.getElementById("cloud-feature-label");
 
 function renderCloudToggle(allowCloud) {
-  cloudToggle.classList.toggle("on", allowCloud);
-  cloudToggle.setAttribute("aria-checked", allowCloud ? "true" : "false");
-  cloudToggle.dataset.allowCloud = allowCloud ? "1" : "0";
-  cloudToggle.title = allowCloud
-    ? "Cloud is ON — general-knowledge questions may reach Claude's API"
-    : "Cloud is OFF — everything stays local";
-  cloudSwitchLabel.textContent = "Cloud: " + (allowCloud ? "ON" : "OFF");
+  cloudFeature.classList.toggle("on", allowCloud);
+  cloudFeature.setAttribute("aria-checked", allowCloud ? "true" : "false");
+  cloudFeature.dataset.allowCloud = allowCloud ? "1" : "0";
+  cloudFeatureIcon.textContent = allowCloud ? "☁️" : "🖥️";
+  cloudFeatureLabel.textContent = allowCloud ? "Cloud Connected" : "Local Only";
 }
 
 async function loadCloudToggle() {
   try {
     const res = await fetch("/api/settings/cloud");
     if (!res.ok) {
-      cloudSwitchLabel.textContent = "Cloud: ?";
+      cloudFeatureLabel.textContent = "Cloud: ?";
       return;
     }
     const data = await res.json();
     renderCloudToggle(data.allow_cloud);
   } catch (e) {
-    cloudSwitchLabel.textContent = "Cloud: ?";
+    cloudFeatureLabel.textContent = "Cloud: ?";
   }
 }
 
-cloudToggle.addEventListener("click", async () => {
-  const next = cloudToggle.dataset.allowCloud !== "1";
-  cloudToggle.disabled = true;
+cloudFeature.addEventListener("click", async () => {
+  const next = cloudFeature.dataset.allowCloud !== "1";
+  cloudFeature.disabled = true;
   try {
     const res = await fetch("/api/settings/cloud", {
       method: "POST",
@@ -1588,7 +1770,7 @@ cloudToggle.addEventListener("click", async () => {
   } catch (e) {
     // leave the label as-is; user can retry the click
   } finally {
-    cloudToggle.disabled = false;
+    cloudFeature.disabled = false;
   }
 });
 

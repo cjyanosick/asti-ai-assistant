@@ -6,6 +6,8 @@ from memory import (
     create_conversation,
     get_conversation,
     list_conversations,
+    delete_conversation,
+    set_conversation_pinned,
     load_personal_memory,
     update_personal_memory,
     forget_personal_memory,
@@ -73,11 +75,32 @@ def conversation_detail(conversation_id):
     return jsonify({
         "id": conv["id"],
         "title": conv["title"],
+        "pinned": conv.get("pinned", False),
         "turns": [
             {"user": t["user"], "ai": t["ai"], "source": t.get("source")}
             for t in conv["turns"]
         ],
     })
+
+
+@app.route("/api/conversations/<conversation_id>", methods=["DELETE"])
+def delete_conversation_route(conversation_id):
+    if delete_conversation(conversation_id):
+        return jsonify({"status": "ok"})
+    return jsonify({"error": "conversation not found"}), 404
+
+
+@app.route("/api/conversations/<conversation_id>/pin", methods=["POST"])
+def pin_conversation_route(conversation_id):
+    data = request.get_json(silent=True) or {}
+    pinned = data.get("pinned")
+
+    if not isinstance(pinned, bool):
+        return jsonify({"error": "pinned (boolean) is required"}), 400
+
+    if set_conversation_pinned(conversation_id, pinned):
+        return jsonify({"status": "ok", "pinned": pinned})
+    return jsonify({"error": "conversation not found"}), 404
 
 
 @app.route("/api/recall", methods=["POST"])
