@@ -1,6 +1,12 @@
 from flask import Flask, request, jsonify, send_from_directory
 
-from llm import process_turn, summarize_uploaded_file, ALLOWED_MEMORY_CATEGORIES, build_diagnostics_report
+from llm import (
+    process_turn,
+    summarize_uploaded_file,
+    ALLOWED_MEMORY_CATEGORIES,
+    build_diagnostics_report,
+    build_diagnostics_data,
+)
 from memory import (
     semantic_search,
     create_conversation,
@@ -254,11 +260,12 @@ def set_cloud_setting():
 
 @app.route("/api/status", methods=["GET"])
 def get_status():
-    # Same build_diagnostics_report() the CLI's /status uses, verbatim -
-    # one source of truth, config/counts only, never content (see the
-    # function's own docstring comment for the privacy-safe-diagnostics
-    # reasoning from roadmap #6).
-    return jsonify({"report": build_diagnostics_report()})
+    # `report` is the plain-text form the CLI's /status also prints, kept
+    # for parity/copy-paste; `data` is the same underlying counts
+    # structured for the GUI's grouped, human-readable Status panel.
+    # Both come from the same source of truth (_collect_diagnostics in
+    # llm.py) — config/counts only, never content (roadmap #6).
+    return jsonify({"report": build_diagnostics_report(), "data": build_diagnostics_data()})
 
 
 if __name__ == "__main__":

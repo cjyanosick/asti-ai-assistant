@@ -871,8 +871,68 @@
     line-height: 1.6;
     white-space: pre-wrap;
     overflow-y: auto;
-    margin: 0;
+    margin: 8px 0 0;
+    max-height: 220px;
   }
+  .status-modal { width: min(620px, 92vw); }
+  .status-body {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .status-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 0 0 6px;
+  }
+  .status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .status-row:last-of-type { border-bottom: none; }
+  .status-row-label {
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .status-row-value {
+    font-weight: 500;
+    text-align: right;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+  .status-dot.good { background: #5fbf78; box-shadow: 0 0 6px rgba(95, 191, 120, 0.5); }
+  .status-dot.bad { background: #e2655a; box-shadow: 0 0 6px rgba(226, 101, 90, 0.5); }
+  .status-note {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .status-raw {
+    margin-top: 2px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+  .status-raw summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .status-raw summary:hover { color: var(--text); }
   .form-row {
     display: flex;
     gap: 6px;
@@ -980,7 +1040,7 @@
 </div>
 
 <div id="status-backdrop" class="modal-backdrop" hidden>
-  <div class="modal">
+  <div class="modal status-modal">
     <div class="modal-header">
       <h2>Diagnostics</h2>
       <button id="status-close" class="modal-close"></button>
@@ -988,7 +1048,11 @@
     <div class="modal-actions">
       <button id="status-refresh">Refresh</button>
     </div>
-    <pre id="status-report" class="status-report">Loading…</pre>
+    <div id="status-body" class="status-body">Loading…</div>
+    <details id="status-raw-details" class="status-raw">
+      <summary>View as plain text</summary>
+      <pre id="status-report" class="status-report"></pre>
+    </details>
   </div>
 </div>
 
@@ -1965,20 +2029,75 @@ const statusBackdrop = document.getElementById("status-backdrop");
 const statusOpen = document.getElementById("status-open");
 const statusClose = document.getElementById("status-close");
 const statusRefresh = document.getElementById("status-refresh");
+const statusBody = document.getElementById("status-body");
 const statusReport = document.getElementById("status-report");
 
+function fmtWhen(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+  } catch (e) {
+    return iso;
+  }
+}
+
+function statusDot(ok) {
+  return `<span class="status-dot ${ok ? "good" : "bad"}"></span>`;
+}
+
+function statusRow(label, value, ok) {
+  const dot = ok === undefined ? "" : statusDot(ok);
+  return `<div class="status-row">` +
+    `<span class="status-row-label">${dot}${label}</span>` +
+    `<span class="status-row-value">${value}</span>` +
+    `</div>`;
+}
+
+function renderStatus(d) {
+  const cloudNote = d.outbound_total === 0
+    ? "No data has left this device yet."
+    : `Last cloud call: ${fmtWhen(d.outbound_last_at) || "unknown"} (${d.outbound_last_status}).`;
+
+  statusBody.innerHTML = `
+    <div class="status-section">
+      <div class="status-section-title">Privacy</div>
+      ${statusRow("Local AI", d.local_reachable ? "Running" : "Not reachable", d.local_reachable)}
+      ${statusRow("Encryption at rest", d.encryption_on ? "On" : "Off (plaintext)", d.encryption_on)}
+      ${statusRow("Cloud access", d.cloud_allowed ? "Allowed" : "Blocked")}
+      ${statusRow("Cloud calls made", `${d.outbound_total} (${d.outbound_ok} ok, ${d.outbound_errors} error)`)}
+      <div class="status-note">${cloudNote}</div>
+    </div>
+    <div class="status-section">
+      <div class="status-section-title">What's stored</div>
+      ${statusRow("Conversations", `${d.conversations_total} (${d.turns_total} messages, ${d.turns_searchable} searchable)`)}
+      ${statusRow("Remembered facts", `${d.memory_entries} across ${d.memory_categories_populated}/${d.memory_categories_total} categories`)}
+      ${statusRow("Uploaded documents", `${d.documents_total} files, ${d.document_chunks_total} chunks across ${d.documents_conversations} chat(s)`)}
+    </div>
+    <div class="status-section">
+      <div class="status-section-title">Model gateway</div>
+      ${statusRow("Local model", `${d.local_provider} / ${d.local_model}`)}
+      ${statusRow("Cloud model", `${d.cloud_provider} / ${d.cloud_model}`)}
+      ${statusRow("Cloud API key", d.cloud_key_set ? "Set" : "Not set", d.cloud_key_set)}
+    </div>
+  `;
+}
+
 async function loadStatusReport() {
-  statusReport.textContent = "Loading…";
+  statusBody.innerHTML = "Loading…";
+  statusReport.textContent = "";
   try {
     const res = await fetch("/api/status");
     if (!res.ok) {
-      statusReport.textContent = "Could not load diagnostics.";
+      statusBody.textContent = "Could not load diagnostics.";
       return;
     }
     const data = await res.json();
+    renderStatus(data.data);
     statusReport.textContent = data.report;
   } catch (e) {
-    statusReport.textContent = "Could not reach ASTI.";
+    statusBody.textContent = "Could not reach ASTI.";
   }
 }
 

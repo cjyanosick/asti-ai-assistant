@@ -18,7 +18,7 @@ from memory import (
 from router import classify_intent
 from outbound_log import load_outbound_log
 from cloud_setting import is_cloud_allowed
-from documents import add_document, list_documents, search_documents
+from documents import add_document, list_documents, search_documents, document_stats
 from config import (
     DEFAULT_PROVIDER,
     DEFAULT_MODEL,
@@ -557,10 +557,10 @@ def summarize_uploaded_file(conversation_id, filename, raw_bytes):
     return _summarize_file_content(conversation_id, filename, content)
 
 
-def build_diagnostics_report():
-    # Privacy-safe diagnostics (roadmap #6, last slice): config and counts
-    # only, never content. Safe to read aloud or paste anywhere — no values,
-    # no keys, no personal data, no prompts.
+def _collect_diagnostics():
+    # Privacy-safe diagnostics (roadmap #6): config and counts only, never
+    # content. Safe to read aloud or paste anywhere — no values, no keys,
+    # no personal data, no prompts, no filenames.
     try:
         ollama_ok = requests.get("http://localhost:11434/api/tags", timeout=2).status_code == 200
     except requests.RequestException:
@@ -571,24 +571,72 @@ def build_diagnostics_report():
     total_entries = sum(len(v) for v in personal_memory.values())
 
     outbound = load_outbound_log()
+    outbound_ok = sum(1 for e in outbound if e.get("status") == "ok")
+    outbound_errors = len(outbound) - outbound_ok
+    last_outbound = outbound[-1] if outbound else None
 
     # Diagnostics counts across every conversation, not just one — this is
     # a global summary, unlike the ambient in-chat recall below which is
     # deliberately scoped to the active conversation.
     history = all_turns()
     embedded_turns = sum(1 for item in history if "embedding" in item)
+    conversations = list_conversations()
+
+    docs = document_stats()
+
+    return {
+        "local_provider": DEFAULT_PROVIDER,
+        "local_model": DEFAULT_MODEL,
+        "local_reachable": ollama_ok,
+        "cloud_provider": CLOUD_PROVIDER,
+        "cloud_model": CLOUD_MODEL,
+        "cloud_allowed": is_cloud_allowed(),
+        "cloud_key_set": bool(CLOUD_API_KEY),
+        "max_outbound_chars": MAX_CLOUD_PROMPT_CHARS,
+        "encryption_on": bool(ENCRYPTION_KEY),
+        "memory_categories_populated": categories_populated,
+        "memory_categories_total": len(personal_memory),
+        "memory_entries": total_entries,
+        "outbound_total": len(outbound),
+        "outbound_ok": outbound_ok,
+        "outbound_errors": outbound_errors,
+        "outbound_last_at": last_outbound["timestamp"] if last_outbound else None,
+        "outbound_last_status": last_outbound["status"] if last_outbound else None,
+        "conversations_total": len(conversations),
+        "turns_total": len(history),
+        "turns_searchable": embedded_turns,
+        "documents_total": docs["documents"],
+        "document_chunks_total": docs["chunks"],
+        "documents_conversations": docs["conversations"],
+    }
+
+
+def build_diagnostics_data():
+    # Structured form for the GUI's Status panel, so it can render
+    # grouped, human-readable sections instead of a raw text dump.
+    return _collect_diagnostics()
+
+
+def build_diagnostics_report():
+    # Plain-text form — CLI's /status, and the GUI's "copy" affordance.
+    d = _collect_diagnostics()
+
+    last_call = ""
+    if d["outbound_last_at"]:
+        last_call = f", last at {d['outbound_last_at']} ({d['outbound_last_status']})"
 
     lines = [
-        f"Local provider/model:  {DEFAULT_PROVIDER} / {DEFAULT_MODEL}",
-        f"Local model reachable: {ollama_ok}",
-        f"Cloud provider/model:  {CLOUD_PROVIDER} / {CLOUD_MODEL}",
-        f"Cloud allowed:         {is_cloud_allowed()}",
-        f"Cloud API key set:     {bool(CLOUD_API_KEY)}",
-        f"Max outbound chars:    {MAX_CLOUD_PROMPT_CHARS}",
-        f"Encryption at rest:    {'on' if ENCRYPTION_KEY else 'off (plaintext)'}",
-        f"Personal memory:       {categories_populated}/{len(personal_memory)} categories populated, {total_entries} entries",
-        f"Outbound calls logged: {len(outbound)}",
-        f"Conversation turns:    {len(history)} total, {embedded_turns} semantically searchable",
+        f"Local provider/model:  {d['local_provider']} / {d['local_model']}",
+        f"Local model reachable: {d['local_reachable']}",
+        f"Cloud provider/model:  {d['cloud_provider']} / {d['cloud_model']}",
+        f"Cloud allowed:         {d['cloud_allowed']}",
+        f"Cloud API key set:     {d['cloud_key_set']}",
+        f"Max outbound chars:    {d['max_outbound_chars']}",
+        f"Encryption at rest:    {'on' if d['encryption_on'] else 'off (plaintext)'}",
+        f"Personal memory:       {d['memory_categories_populated']}/{d['memory_categories_total']} categories populated, {d['memory_entries']} entries",
+        f"Outbound calls logged: {d['outbound_total']} ({d['outbound_ok']} ok, {d['outbound_errors']} error){last_call}",
+        f"Conversations:         {d['conversations_total']} ({d['turns_total']} turns total, {d['turns_searchable']} semantically searchable)",
+        f"Documents:             {d['documents_total']} files, {d['document_chunks_total']} chunks, across {d['documents_conversations']} conversation(s)",
     ]
     return "\n".join(lines)
 
