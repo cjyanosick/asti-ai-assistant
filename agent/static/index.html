@@ -960,6 +960,17 @@
     border-color: rgba(226, 101, 90, 0.4);
   }
   #settings-cloud-toggle { margin: 0; }
+  .data-path {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
   .form-row {
     display: flex;
     gap: 6px;
@@ -1147,6 +1158,17 @@
         <div class="status-note">When off, general-knowledge and code questions are
           answered locally instead of reaching the cloud. Your personal memory and
           documents are never sent to the cloud either way.</div>
+      </div>
+
+      <div class="status-section">
+        <div class="status-section-title">Data &amp; Privacy</div>
+        <div class="status-note">Your data lives here, encrypted, and stays on this
+          device unless you turn Cloud on.</div>
+        <div id="settings-data-path" class="data-path">Loading…</div>
+        <button id="settings-reveal-folder" class="settings-btn" style="margin-top: 8px;">
+          Show in Finder
+        </button>
+        <div id="settings-reveal-status" class="form-status"></div>
       </div>
 
       <div class="status-section">
@@ -2325,6 +2347,9 @@ const settingsClearMemoryBtn = document.getElementById("settings-clear-memory");
 const settingsClearConversationsBtn = document.getElementById("settings-clear-conversations");
 const settingsDangerStatus = document.getElementById("settings-danger-status");
 const settingsViewDiagnosticsBtn = document.getElementById("settings-view-diagnostics");
+const settingsDataPath = document.getElementById("settings-data-path");
+const settingsRevealBtn = document.getElementById("settings-reveal-folder");
+const settingsRevealStatus = document.getElementById("settings-reveal-status");
 
 let settingsDiagnostics = null;
 
@@ -2337,11 +2362,39 @@ async function loadSettingsDiagnostics() {
   }
 }
 
+async function loadDataPath() {
+  settingsDataPath.textContent = "Loading…";
+  try {
+    const res = await fetch("/api/data-location");
+    if (!res.ok) {
+      settingsDataPath.textContent = "Could not load.";
+      return;
+    }
+    const data = await res.json();
+    settingsDataPath.textContent = data.path;
+  } catch (e) {
+    settingsDataPath.textContent = "Could not reach ASTI.";
+  }
+}
+
+settingsRevealBtn.addEventListener("click", async () => {
+  settingsRevealStatus.textContent = "Opening…";
+  try {
+    const res = await fetch("/api/data-location/reveal", { method: "POST" });
+    const data = await res.json();
+    settingsRevealStatus.textContent = res.ok ? "" : "Error: " + (data.error || res.statusText);
+  } catch (e) {
+    settingsRevealStatus.textContent = "Could not reach ASTI.";
+  }
+});
+
 function openSettings() {
   settingsBackdrop.hidden = false;
   settingsDataStatus.textContent = "";
   settingsDangerStatus.textContent = "";
+  settingsRevealStatus.textContent = "";
   loadSettingsDiagnostics();
+  loadDataPath();
 }
 function closeSettings() {
   settingsBackdrop.hidden = true;
