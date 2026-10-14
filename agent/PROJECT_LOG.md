@@ -2543,3 +2543,116 @@ scroll feel on the real `legacy` conversation is Carter's to confirm,
 same caveat as every GUI change this session. If scrolling still feels
 wrong after this, that would point at something other than these two
 causes and is worth another look.
+
+## Professional-use stress test, and the fixes it drove
+
+### What was tested
+ASTI was stress-tested as a family physician, therapist, defense lawyer,
+financial advisor and small-business owner, plus a user in a suicide
+crisis, with fake case files and a contract containing a prompt
+injection. It ran against the real `process_turn()` pipeline in a
+sandbox: fresh stores, and every cloud call intercepted and recorded so
+nothing was actually sent. It also included a read-only review of all
+real chat history. Full findings, raw per-turn results and re-runnable
+scripts live **outside the repo** in `../asti-ai-assistant-stress-tests/`
+(`2026-10-14/` and `2026-10-14-after-fixes/`). They're kept out of git
+because they quote real chat history.
+
+### What it found
+- **The privacy boundary was in the wrong place for professionals.**
+  Personal memory never reached the cloud. But the classifier treats
+  "personal" as the user's *own* life, so "my client Robert Chen, SSN
+  …", a privileged hit-and-run confession, and a named patient's allergy
+  were all classified `general_knowledge`/`code` and would have been
+  sent with cloud on: 27 of 41 professional messages.
+- **Document Q&A almost never reached the documents.** Only the `chat`
+  branch searches them, and natural questions ("which client admitted to
+  drinking?") routed elsewhere: 0 of 8.
+- **Crisis handling was unsafe.** It gave the retired Lifeline number,
+  told someone with 30 Ambien "I cannot continue this conversation", and
+  proposed saving the dose to memory.
+- **Honesty.** It claimed to have saved memory before confirmation,
+  proposed client facts for global memory (one filed as the user's own
+  identity), and a prompt-injected contract got called "fully standard
+  and safe to sign" while personal memory was listed back.
+
+### What changed
+- `router.py`: `contains_sensitive_details()` is a deterministic
+  pre-router guard (client/patient/employee roles, honorific names,
+  case captions, SSN/MRN/DOB/email/phone, privilege and legal signals,
+  own diagnosis/meds/family/debt, merger/insider). A hit forces local
+  `chat`. False positives cost answer quality, never privacy.
+  `_NON_CODE_RE` vetoes "treatment program", "role play script", "code
+  of conduct" and similar. A non-question is never `recall`. The
+  classifier now sees the previous message.
+- `llm.py` `_route()`: a chat with uploaded documents always routes to
+  `chat`, and a pronoun follow-up to a sensitive turn stays `chat`.
+- **Crisis protocol** (`crisis_response()`):
+  - fixed detection, excluding a professional describing a client, and
+    sticky for 3 turns;
+  - always local, and never extracts memory;
+  - the model writes a warm reply; Python replaces any refusal;
+  - 988/911 resources shown in full once, then as a short line;
+  - `fix_outdated_hotlines()` rewrites the old 1-800 number in every
+    reply.
+- **Memory honesty.**
+  - Pending memory is shown to the model as an explicit "NOT SAVED YET"
+    block instead of being merged into personal memory.
+  - `_correct_save_claims()` appends a correction whenever a reply still
+    claims it saved something.
+  - `extract_memory()` never proposes third-party facts, requests
+    ("Draft…", "Cite…"), or identity facts from a message naming someone
+    else.
+- **Injection containment.** `_neutralize_injections()` removes
+  AI-directed sentences from document text in Python, both at upload
+  summary and at retrieval, and the reply carries a visible ⚠️ warning.
+  Personal memory is left out of the prompt when answering from
+  documents.
+- **Truthful status answer.** `_cloud_status_answer()` says exactly what
+  leaves the machine and admits the sensitive check is pattern-based.
+  "Is anything about my patients being sent anywhere?" now gets that
+  deterministic answer.
+- **Smaller fixes.**
+  - Weekday added to prompts.
+  - Prompt rules against invented history, citations and doses.
+  - Fewer uses of the user's name.
+  - A ⚠️ caution on local answers that contain a case citation.
+
+### Verification
+The identical suite was re-run against the fixed code:
+
+| | Before | After |
+|---|---|---|
+| Router sweep, cloud-bound | 27 of 41 | 7 of 41 (all generic questions) |
+| Messages actually sent to the cloud in the multi-turn scenarios (cloud on) | 14 | 0 |
+| Natural document questions answered from the files (cited, isolation intact) | 0 of 8 | 8 of 8 |
+| Crisis turns that refused | 2 of 4 | 0 of 4 |
+| Client facts proposed for global memory | 7 | 0 |
+
+- The injected contract now has its risky clauses (gross-negligence
+  indemnity, 3-year auto-renewal) flagged, with the warning shown.
+- An everyday-use regression run is unchanged: memory proposals, recall,
+  general/code questions still going to the cloud, and the status answer.
+- The real Claude API wasn't exercised: cloud calls were stubbed and
+  recorded.
+
+### Known ceiling, not fixed
+These are llama3's limits, so they're flagged or reduced rather than
+fixed:
+- It still invents case citations (now with the caution attached).
+- It still gets yearly limits wrong (the 2026 401k limit).
+- Its clinical and legal-ethics answers are thin.
+
+That last one is the main trade-off: professional questions now
+correctly stay local, so they get local-model quality. A stronger local
+model is the real fix (CLAUDE.md "known limitation" option 2).
+
+### Also
+- **Junk cleanup.** Ten pre-10/13 junk entries were removed from
+  `personal_memory.json` with Carter's approval, through
+  `forget_personal_memory()` so encryption is preserved. An encrypted
+  backup was taken first (outside the repo). Two real entries with
+  garbled values were left untouched pending Carter's call.
+- **Workflow change (Carter, 10/14).** Agents now write `PROJECT_LOG.md`
+  entries themselves and commit + push every change, instead of handing
+  over "COMMIT NOW"/"DOCUMENT NOW" text.
