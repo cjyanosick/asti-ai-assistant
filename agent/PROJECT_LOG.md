@@ -2215,3 +2215,52 @@ explicit go-ahead, ran the new function directly against the real
 3 real orphaned entries — confirmed all 3 removed, `documents.json` back
 to empty (nothing else in it at the time). Live server confirmed
 reloaded and serving correctly after the code change.
+
+## Diagnostics expanded, and made readable to a non-technical user
+
+### What changed
+Carter asked to "expand diagnostics to make it more informative to the
+user/client" (roadmap #6's "privacy-safe diagnostics" item). Two parts:
+
+**More counted.** `_collect_diagnostics()` (new, llm.py — replaces the
+old single-purpose `build_diagnostics_report()`) adds what the recent
+features never surfaced: document counts (`document_stats()`, new in
+documents.py — files/chunks/conversations, never filenames or content),
+conversation count (via the already-existing `list_conversations()`),
+and outbound-call health (ok/error split, timestamp + status of the
+most recent call — not just a raw count). Same privacy-safe rule as
+before: config and counts only, nothing that reveals content.
+
+**More readable.** The GUI's Diagnostics panel was a raw monospace
+`<pre>` dump of CLI-style lines — fine for Carter, opaque for the
+lawyer/small-business audience this product is actually for. It's now
+three grouped, plain-English sections (Privacy / What's stored / Model
+gateway) with small green/red dot indicators on the things that are
+genuinely health signals (is the local model actually running, is
+encryption actually on, is a cloud key actually configured) and no dot
+on settings that are just a current state, not a pass/fail (cloud
+access allowed/blocked is a toggle, not a problem either way). A
+one-line note calls out plainly whether any data has left the device
+yet, and if so, when. The original plain-text report still exists,
+collapsed under "View as plain text" — kept for parity with the CLI's
+`/status` and as a copy-paste-able form, not removed.
+
+`build_diagnostics_report()` (CLI's `/status`, unchanged in behavior)
+and the new `build_diagnostics_data()` (GUI) both now read from the same
+`_collect_diagnostics()` — one source of truth, two presentations.
+`/api/status` returns both `report` and `data` so neither consumer
+had to change what it already expected.
+
+### Verification
+Called `build_diagnostics_report()`/`build_diagnostics_data()` directly
+against Carter's real data — correct counts (6 conversations, 125
+turns, 16 memory entries, 38 outbound calls/36 ok/2 error, 0 documents
+at the time). Confirmed live over HTTP (`/api/status`) after the
+server's auto-reload. Since no browser is available in-session: used
+`osascript -l JavaScript` (macOS's JavaScriptCore) to parse the page's
+full script block for syntax errors (none), then fed `renderStatus()`
+itself the same real numbers in isolation and printed the HTML it
+produced — confirmed correct nesting, correct dot placement, correct
+wording, before trusting it to Carter's browser. HTML-parser validity
+and brace/paren/bracket balance re-checked on the whole file. Actual
+visual appearance is Carter's to confirm.

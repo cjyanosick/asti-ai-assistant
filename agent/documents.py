@@ -121,6 +121,19 @@ def delete_documents_for_conversation(conversation_id):
     return len(doc_ids)
 
 
+def document_stats():
+    # Global counts for diagnostics (roadmap #6, "privacy-safe diagnostics")
+    # — file/chunk counts only, never filenames or content, same rule the
+    # rest of build_diagnostics_report() follows.
+    store = _load_store()
+    conv_ids = {d["conversation_id"] for d in store["documents"].values()}
+    return {
+        "documents": len(store["documents"]),
+        "chunks": len(store["chunks"]),
+        "conversations": len(conv_ids),
+    }
+
+
 def search_documents(conversation_id, query_embedding, top_k=5):
     # Scoped to one conversation on purpose — ambient document context for
     # the model answering a question shouldn't mix documents from an
