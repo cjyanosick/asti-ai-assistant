@@ -1817,3 +1817,48 @@ way). Confirmed live via the running server (`GET /` → 200). Still no
 browser available in-session — this is explicitly round 2 *because* the
 first round's final-visual-check-is-Carter's caveat turned out to
 matter in practice, not just as a disclaimer.
+
+## Finding: sharpest local-model hallucination example yet (found 10/14)
+
+### What happened
+Checked real chat history for the most recent hallucination at Carter's
+request. Found one in the "give me a script to keep my mouse clicking on
+mac" conversation (local/llama3 throughout):
+1. Carter asked for a mouse-clicker script; got a plausible-sounding but
+   truncated Automator/AppleScript answer.
+2. Carter: "give it too me so I can just pop it into terminal." The model
+   responded with a completely unrelated fabricated question — "What is
+   the largest living species of lizard, and what is its average
+   length?" — telling Carter to paste *that* into his terminal. Not a
+   wrong fact: a total non-sequitur with no connection to the actual
+   request.
+3. Carter called it out ("wtf are you talking about"); the model got
+   defensive, insisted it remembered the mouse-clicker conversation
+   correctly, still didn't produce a script.
+4. Pushed again, it produced a bash script — but the script itself is a
+   generic "ask ASTI a general-knowledge question" REPL loop, unrelated
+   to mouse-clicking.
+
+### Ruled out as a retrieval bug, not just assumed
+Before concluding this was pure model hallucination, checked whether
+this session's own semantic-recall feature (`_filter_related_matches`)
+had surfaced an old unrelated turn and the model regurgitated it —
+searched all of Carter's real history for any prior mention of "lizard."
+None exists anywhere. This was the model fabricating content outright,
+not a bug in the recall mechanism surfacing something real but
+irrelevant.
+
+### The useful contrast
+Carter asked the identical mouse-clicker question again in a fresh chat
+a few minutes later. That turn happened to route through cloud (Claude),
+and got a correct, on-topic Python script using `pynput` on the first
+try. Same question, same session — local vs. cloud was the entire
+difference between nonsense and a correct answer.
+
+### What this is, documented plainly in CLAUDE.md
+Not a new bug to fix in ASTI's code — a sharper, concrete data point for
+the already-known local-model reliability ceiling (first documented
+10/13 re: fabricated event/incident details). This one shows the failure
+mode can be worse than "confidently wrong fact" — it can be "loses the
+thread of the task entirely." See CLAUDE.md's "Build now" section for
+the options discussed with Carter for actually addressing this.
