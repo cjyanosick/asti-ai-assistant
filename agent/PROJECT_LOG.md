@@ -1425,3 +1425,90 @@ expected behavior. No real data touched; nothing needed backing up.
 The existing corrupted `goals.savings_target` value (`"2026"`) is left
 as-is for now, per Carter's call — this fixes the mechanism going
 forward, not the already-corrupted stored value.
+
+## Milestone: Semantic recall back in live chat, this time deterministic
+
+### What Carter asked for
+Chat that feels like ChatGPT/Claude-level memory — asked directly whether
+that's achievable, then said to build it and "add in anything you need to
+make the chat feel like a frontier model even if it is limited."
+
+### Honest framing, given before building
+Retrieval (finding the right past turn) can get close to frontier-level —
+it's a mostly model-independent, solved problem, and the infrastructure
+already existed (`nomic-embed-text` embeddings on every turn,
+`semantic_search()`). Synthesis quality (judging staleness, resolving
+conflicts, writing a coherent answer) is bottlenecked by llama3's raw
+reasoning ability and will not match GPT-4/Claude-class models — proven
+in this exact codebase already (see the reverted first attempt at this,
+noted in `CLAUDE.md`'s roadmap #7). Agreed to build retrieval as strong as
+possible with Python-enforced rules instead of trusting the model to
+self-correct, and accept the synthesis ceiling as a known limitation.
+
+### What changed
+- `memory.py`: new `semantic_search_recent()` — same cosine-similarity
+  search as `semantic_search()`, but also returns each match's position
+  in the full history list. `memory.json` is append-only with no
+  per-turn timestamp, so list position doubles as a recency signal.
+- `llm.py`: `ask_llm()`'s `chat` mode now runs semantic recall on every
+  turn (embeds the live prompt, searches history) instead of only
+  responding to the explicit `/recall` command. Raw matches go through a
+  new deterministic filter, `_filter_related_matches()`, before ever
+  reaching the model:
+  1. Drop anything already in the last-3-turns window (no duplicate
+     context).
+  2. Drop anything below a relevance floor (score < 0.5) — top-k always
+     returns *something*, a low score means "nothing better", not
+     "relevant."
+  3. **The actual fix for the original bug**: drop any match whose text
+     overlaps a `personal_memory` key's words (`_personal_memory_fact_tokens()`
+     — e.g. `savings_target` → `{"savings", "target"}`). This is why the
+     first attempt at this failed: an old "$10,000" turn semantically
+     outranked the current $50,000 `personal_memory` value, and llama3
+     didn't reliably resolve the conflict even with explicit "this may be
+     outdated" instructions in the prompt. Now that conflicting old turn
+     is never shown to the model at all — personal memory is trusted
+     alone for anything it already tracks, enforced in Python, not asked
+     of the model.
+  4. Collapse near-duplicate matches (the same topic resurfacing from
+     different points in history) down to the most recent one, using
+     list position, not raw score, to break the tie.
+  Surviving matches (capped at 3) go into a clearly-delimited "RELATED
+  EARLIER CONVERSATION (background only)" block in the prompt, separate
+  from the authoritative personal-memory block and the recent-turns
+  block, with explicit "this may be outdated, personal memory wins on
+  conflict" instructions.
+- Added one line to the system-level instructions telling the model to
+  reference recalled context naturally and confidently ("like you
+  mentioned before...") instead of explaining that it searched memory —
+  the "frontier model feel" half of the ask. Small, but changes how
+  recall actually reads in a response.
+
+### Verification
+Three tests, all via `ask_llm()` directly (read-only — never touched real
+data files, confirmed with `git status` after):
+1. Real end-to-end call against Carter's actual data (`what is my savings
+   goal?`) — ran clean, no crash, correctly stayed authoritative to
+   personal memory (still showing the known, not-yet-fixed `"2026"`
+   corruption, unrelated to this change).
+2. Reproduced the exact originally-reverted bug with fake in-memory data
+   (an old "$10,000 saved" turn + a clean personal_memory value of
+   $50,000) — confirmed via direct inspection that the $10,000 match was
+   genuinely the top semantic result (score 0.664) and was then correctly
+   dropped by the fact-token filter; the model answered $50,000.
+3. Fake in-memory data for a topic personal_memory does *not* track (an
+   old "trip to Japan" turn) with a later query ("have I mentioned any
+   travel plans?") — confirmed the match survived filtering and the model
+   referenced it naturally: "Like you mentioned before, you've been
+   considering a trip to Japan, maybe exploring Kyoto and Tokyo."
+First pass at test 3 silently used real production data instead of the
+fake history because `semantic_search_recent()` resolves `load_memory()`
+against `memory.py`'s own module namespace, not `llm.py`'s imported name
+— patching `llm.load_memory` alone doesn't affect it. Needed to patch
+`memory.load_memory` directly too. Worth remembering for any future test
+that monkeypatches a `from module import name` import.
+
+### Known limitation, accepted not chased
+Synthesis quality (how well the model actually reasons over what's
+retrieved) still won't match a frontier cloud model — that's the honest
+ceiling discussed before building this, not a bug to fix here.
