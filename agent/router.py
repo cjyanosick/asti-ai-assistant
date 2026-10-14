@@ -127,6 +127,15 @@ def contains_sensitive_details(message):
     return any(r.search(message) for r in _SENSITIVE_RES)
 
 
+def mentions_third_party(message):
+    # Narrower than contains_sensitive_details: is this message about a
+    # *specific other person* the user works with (a client, patient,
+    # employee, "Mrs. Patel")? Used by llm.py to keep those facts out of the
+    # user's own global personal memory, and to tell a therapist describing
+    # a client apart from a user in crisis themselves.
+    return any(r.search(message) for r in _SENSITIVE_RES[:4])
+
+
 # A message has to actually be a question to be "recall" (stress test,
 # 10/14): "My patient Maria Lopez, 54, has type 2 diabetes..." and
 # "Remember that my client Sarah's next session is Thursday" were both
