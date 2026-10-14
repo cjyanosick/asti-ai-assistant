@@ -1862,3 +1862,55 @@ the already-known local-model reliability ceiling (first documented
 mode can be worse than "confidently wrong fact" — it can be "loses the
 thread of the task entirely." See CLAUDE.md's "Build now" section for
 the options discussed with Carter for actually addressing this.
+
+## Milestone: code requests route to cloud when allowed
+
+### What Carter asked for
+After seeing the mouse-clicker hallucination, asked what he could do
+about it. Agreed on the most direct fix: route code/script requests to
+cloud the same way general-knowledge questions already do, since the
+same test question got a correct answer from Claude and nonsense from
+llama3. Asked specifically to have it show a message like "coding
+requests are best with cloud access" when answered locally.
+
+### What changed
+- `router.py`: new `code` intent. `_CODE_REQUEST_RE` deterministically
+  catches clear phrasings ("write/give/generate/create/make" near
+  "script/code/function/program/snippet"), checked *after* the existing
+  file-reference override — a request about an uploaded file needs that
+  file's context, which the cloud-bound `code` path never loads, so
+  file-reference wins if both match. The LLM classifier also recognizes
+  `code` for phrasings the regex misses, same pattern as
+  `general_knowledge`.
+- `llm.py`: new `code` branch in `ask_llm()`, structurally identical to
+  `general_knowledge` — personal memory is never loaded on this path at
+  all (same hard privacy boundary, not a new one), cloud when
+  `is_cloud_allowed()`, local fallback otherwise. Unlike the
+  `general_knowledge` disclaimer (moved to a hover tooltip 10/13 to save
+  space), this one stays visible in the response body — Carter's call,
+  since it's actionable advice ("turn cloud on"), not just a liability
+  notice.
+
+### Verification
+Fed the exact three real messages from the mouse-clicker incident
+through `classify_intent()` — all three now classify as `code` (they
+previously fell through to `chat`/whatever the classifier guessed,
+which is how the request ended up handled badly by the local model in
+the first place). Confirmed `write a story about my brother` and
+`how are you doing today` still correctly classify as `chat` — the verb
+overlap ("write") didn't cause a false positive since "story" isn't in
+the code-noun list.
+Tested `ask_llm()`'s new branch directly: cloud off (today's real
+setting) → local response with the visible nudge appended; toggled
+cloud on → correct, on-topic `pynput` script immediately, confirming
+the fix actually reaches Claude correctly; restored the real cloud
+setting immediately after. Full `process_turn()` test via a throwaway
+conversation id, and a live HTTP round trip through the running server
+with the exact real failing message — both correct (`intent: "code"`,
+`source: "local"`, nudge message present). All test data cleaned up
+from the real `memory.json` afterward (turn count confirmed unchanged).
+Interesting note, not a bug: the live HTTP test's local-model response
+this time was actually correct and on-topic (model stochasticity — it
+doesn't fail the same way every time). The fix doesn't depend on the
+failure reproducing every run; it's a structural reliability
+improvement for a known-weaker path, not a patch for one bad output.

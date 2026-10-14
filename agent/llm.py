@@ -189,8 +189,8 @@ def _notify_cloud_disabled_once():
     global _notified_cloud_disabled
     if not _notified_cloud_disabled:
         print(
-            "[privacy] Cloud disabled — answering general-knowledge "
-            "questions locally instead of via the cloud provider."
+            "[privacy] Cloud disabled — answering general-knowledge/code "
+            "requests locally instead of via the cloud provider."
         )
         _notified_cloud_disabled = True
 
@@ -399,6 +399,21 @@ def _general_system_prompt():
         f"or detail), say so plainly instead of inventing a plausible-sounding "
         f"answer. A confident but made-up answer is worse than admitting "
         f"you don't know."
+    )
+
+
+def _code_system_prompt():
+    # Added 10/14 after a real, documented failure: asked locally for a Mac
+    # mouse-clicker script, llama3 fabricated an unrelated trivia question
+    # instead of writing code, then produced an irrelevant script when
+    # pushed again (see PROJECT_LOG.md). Routing code requests to cloud
+    # when allowed is the fix; this system prompt is what the cloud model
+    # sees on that path.
+    return (
+        "You are ASTI, the user's personal assistant, writing code for a "
+        "request with no personal angle. Write clean, correct, working "
+        "code. Briefly explain it only where that adds real value — don't "
+        "pad the answer with generic disclaimers or capability caveats."
     )
 
 
@@ -674,6 +689,40 @@ def ask_llm(conversation_id, prompt, mode="chat", reference=None, pending_memory
         # it doesn't know, proven by direct test earlier this project) —
         # it just now lives as the badge's hover title instead of prose.
         return local_response, "local"
+
+    if mode == "code":
+        # Same hard privacy boundary as general_knowledge above: personal
+        # memory is never loaded on this path, so it genuinely cannot end
+        # up in a request sent to the cloud provider.
+        system_prompt = _code_system_prompt()
+
+        if is_cloud_allowed():
+            truncated = len(prompt) > MAX_CLOUD_PROMPT_CHARS
+            cloud_question = prompt[:MAX_CLOUD_PROMPT_CHARS] if truncated else prompt
+
+            response = generate_cloud_response(
+                cloud_question, intent="code", system=system_prompt
+            )
+            if truncated:
+                response += (
+                    f"\n\n(Your message was long — only the first "
+                    f"{MAX_CLOUD_PROMPT_CHARS} characters were sent to the cloud provider.)"
+                )
+            return response, "cloud"
+
+        _notify_cloud_disabled_once()
+        local_response = generate_response(prompt, system=system_prompt)
+
+        # Visible, not a hover tooltip (unlike the general_knowledge
+        # disclaimer) — this is actionable advice ("turn cloud on"), not
+        # just a liability notice, so it's worth the extra line. Carter's
+        # call, after a real local failure on a coding request (see
+        # _code_system_prompt's comment and PROJECT_LOG.md).
+        return local_response + (
+            "\n\n💡 Coding requests are best with cloud access — the local "
+            "model is noticeably less reliable at this. Toggle Cloud on "
+            "for better results."
+        ), "local"
 
     personal_memory = load_personal_memory() #read structured personal memory
 
