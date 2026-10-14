@@ -2163,3 +2163,20 @@ exist exactly once. No browser automation available in-session — actual
 drag-and-drop interaction (the one part of this milestone that's
 genuinely hard to verify without a real browser) is Carter's to confirm
 directly, more than any other change this session.
+
+## Polish: animated sparkle replaces "ASTI is thinking…" text
+
+### What changed
+`addThinking()` no longer renders plain text. It reuses the logo's
+4-point sparkle mark (its own gradient def, not a reference to the
+header's, so this element stays self-contained), animated with a
+`rotate + scale` keyframe loop — spins a full turn while pulsing size,
+looping for as long as the response is pending. Carter's call: the mark
+already reads as "ASTI" from the header, so no label is needed here at
+all, text or otherwise.
+
+### Verification
+CSS brace balance, JS balance, and HTML-parser validity re-checked.
+Live server confirmed still serving the page. The animation itself
+(timing, whether the spin/pulse actually reads well in motion) isn't
+something a structural check can confirm — Carter's to look at.
