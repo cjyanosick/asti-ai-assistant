@@ -1778,3 +1778,42 @@ Committed locally, **not pushed** — this is the largest/most structural
 change this session (real data migration + new API shape + full UI
 rework), so it's waiting on Carter actually testing it before it goes to
 the public repo, not on the usual commit-and-push rhythm.
+
+## Fix: visual pass, round 2 — "it looks the exact same"
+
+### What happened
+Carter tested the conversations/sidebar rework: "features all work,
+visual it looks the exact same." The first visual pass (same session,
+earlier milestone) was real but too subtle to register — shade-level
+color tweaks and hover-only transitions nobody would notice without
+deliberately comparing screenshots or hovering every button.
+
+### What changed this time — asked first, then went bold
+Asked Carter which direction ("bold dark + vivid accent," "minimal flat,"
+"soft & warm pushed further," or "show me, I'll react") instead of
+guessing wrong a second time. He picked "soft & warm, pushed further" —
+keep the coral accent, go much bolder with it.
+- Body background: layered warm radial gradients instead of flat color.
+- Header/composer/sidebar/modals: actual glass — semi-transparent
+  backgrounds + `backdrop-filter: blur()`, not just a different solid
+  shade.
+- `--accent-gradient` (a real 3-stop coral→orange→rust gradient, not a
+  single color) now fills every primary action: Send, New Chat's active
+  state, the cloud toggle's "on" state, memory-chip Save, Recall's
+  search button, the memory-edit form's Save button — each with a
+  matching glow-shadow on hover instead of a flat brightness filter.
+- Header title "ASTI" is now gradient-filled text
+  (`background-clip: text`), not plain colored text.
+- Message bubbles gained real shadows and the AI bubble its own subtle
+  blur, instead of a flat border-only look.
+- Removed two CSS variables (`--panel-solid`, `--accent-2`) added during
+  this pass but never actually referenced — caught before committing,
+  not left as dead code.
+
+### Verification
+CSS brace balance and HTML-parser validity re-checked after every
+sub-edit (caught and fixed a duplicate `#new-chat-btn:active` rule this
+way). Confirmed live via the running server (`GET /` → 200). Still no
+browser available in-session — this is explicitly round 2 *because* the
+first round's final-visual-check-is-Carter's caveat turned out to
+matter in practice, not just as a disclaimer.
