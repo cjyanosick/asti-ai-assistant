@@ -21,7 +21,7 @@ from memory import (
 )
 from model_provider import generate_embedding
 from cloud_setting import is_cloud_allowed, set_cloud_allowed
-from documents import list_documents, delete_documents_for_conversation
+from documents import list_documents, delete_documents_for_conversation, delete_all_documents
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 # Basic safety net against an accidental huge upload — not a hard
@@ -120,6 +120,15 @@ def conversation_documents(conversation_id):
             for d in docs
         ]
     })
+
+
+@app.route("/api/documents", methods=["DELETE"])
+def delete_all_documents_route():
+    # Settings panel's "Clear uploaded documents" — a standalone bulk
+    # action, unlike /api/conversations/<id> delete which only ever
+    # cascades documents for the one chat being removed.
+    deleted = delete_all_documents()
+    return jsonify({"status": "ok", "deleted": deleted})
 
 
 @app.route("/api/conversations/<conversation_id>/pin", methods=["POST"])

@@ -121,6 +121,18 @@ def delete_documents_for_conversation(conversation_id):
     return len(doc_ids)
 
 
+def delete_all_documents():
+    # Settings panel's "Clear uploaded documents" (10/14) — unlike chat
+    # deletion, this only touches documents.json; conversations and their
+    # turns are untouched. Returns the count removed, for a confirmation
+    # message.
+    store = _load_store()
+    count = len(store["documents"])
+    if count:
+        _save_store({"documents": {}, "chunks": []})
+    return count
+
+
 def document_stats():
     # Global counts for diagnostics (roadmap #6, "privacy-safe diagnostics")
     # — file/chunk counts only, never filenames or content, same rule the

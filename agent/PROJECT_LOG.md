@@ -2264,3 +2264,84 @@ produced — confirmed correct nesting, correct dot placement, correct
 wording, before trusting it to Carter's browser. HTML-parser validity
 and brace/paren/bracket balance re-checked on the whole file. Actual
 visual appearance is Carter's to confirm.
+
+## Recall and Memory panels given the same plain-language treatment; Settings added
+
+### What changed
+Carter liked the diagnostics redesign and asked for the same treatment
+on Semantic Recall and Personal Memory, plus a Settings panel with
+"basic settings that would come with a shipped product of this kind."
+
+**Semantic Recall.** Raw cosine similarity ("score 0.842") meant
+nothing to a non-technical reader. Results now show a plain-language
+`relevanceLabel()` ("Strong match" / "Good match" / "Possible match" /
+"Weak match") with the exact number still available on hover (a
+tooltip) for Carter's own debugging — same pattern as diagnostics'
+"friendly default, technical detail still reachable." A one-line intro
+under the panel header explains what it actually does in plain words.
+
+**Personal Memory.** Added a summary line ("16 facts across 5/6
+categories") and a per-category count next to each heading, plus a
+one-line intro. The Export button now says plainly what it produces —
+"Saved as an encrypted file... not a plain-text backup" — surfacing the
+open question flagged in CLAUDE.md roadmap #4 honestly in the UI
+instead of leaving it silent.
+
+**Settings (new).** A gear icon in the header opens a panel built from
+the same grouped-section language as Diagnostics (reusing
+`.status-section`/`.status-row` CSS, not a new visual language):
+- *Privacy* — the cloud-access toggle, mirrored here from the header
+  (same control, two locations; `cloudToggleEls` now holds both button
+  elements and a single render/click path keeps them in sync).
+- *Data management* — Export personal memory, with the same
+  encrypted-export note as the Memory panel.
+- *Danger zone* — three bulk actions, each confirm-gated with the
+  live count pulled from `/api/status` in the message itself ("Delete
+  all conversations (6)?" not just "Delete all conversations?"):
+  - **Clear uploaded documents** — new backend: `delete_all_documents()`
+    (documents.py) + `DELETE /api/documents` (app.py). Unlike the
+    per-conversation cascade delete, this is a standalone bulk wipe of
+    `documents.json` alone; conversations are untouched.
+  - **Forget all remembered facts** — no new backend. Loops the
+    existing `/api/memory/forget` over every category/key from
+    `GET /api/memory`, client-side, sequentially (same safe pattern
+    multi-file upload already established for not racing writes to one
+    JSON store).
+  - **Delete all conversations** — no new backend either. Loops the
+    existing per-conversation `DELETE /api/conversations/<id>` (which
+    already cascades document deletion, 10/14's earlier fix), then
+    calls the existing `startNewConversation()` to reset the view.
+- *About* — app name and the North Star line verbatim ("Private by
+  architecture. Local by default. Cloud by choice. User controlled."),
+  plus a shortcut into the full Diagnostics panel.
+
+### Verification
+New backend (`delete_all_documents()` + its route): backed up the real
+(already-empty) `documents.json` first per standing rule, added a
+throwaway document via the real `add_document()`/`/api/read` path,
+confirmed it existed, called the new function/route, confirmed
+`documents.json` was empty after, then restored the pre-test file from
+backup and re-verified its content matched exactly. Also exercised the
+full route via the Flask test client with a throwaway conversation +
+upload end to end, then cleaned up the throwaway conversation and
+restored `documents.json` again.
+
+The two bulk actions that loop over existing single-item endpoints
+(forget-all-memory, delete-all-conversations) were **not** run against
+Carter's real data — that would mean actually wiping his real facts and
+chats to test a button. Instead, their exact JS logic (the same loop/
+counting code as shipped) was run in isolation under `osascript -l
+JavaScript` against a mocked `fetch`/`confirm`, confirming the right
+number of calls, the right final counts, and that
+`startNewConversation()` fires at the end — without touching the real
+server or real data at all. The single-item endpoints underneath them
+were already verified working in earlier milestones.
+
+Structural checks re-run on the whole file after all changes:
+HTML-parser validity, brace/paren/bracket balance, full-script-block
+syntax via JavaScriptCore, and a cross-check that every
+`getElementById` call in the JS matches exactly one `id=` in the HTML
+(58 ids, zero missing, zero duplicates). Live server confirmed serving
+the updated page and `/api/status` throughout. Actual visual look and
+feel — especially the mirrored cloud toggle, the gear icon, and the
+danger-zone confirmations in a real browser — is Carter's to confirm.
