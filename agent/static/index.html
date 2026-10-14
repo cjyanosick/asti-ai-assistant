@@ -666,6 +666,33 @@
     z-index: 10;
   }
   .modal-backdrop[hidden] { display: none; }
+  #drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(24, 20, 15, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: none;
+  }
+  #drop-overlay[hidden] { display: none; }
+  .drop-overlay-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 44px 64px;
+    border: 2px dashed var(--accent);
+    border-radius: 20px;
+    background: var(--accent-dim);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  #drop-overlay-icon { color: var(--accent); }
   .modal {
     background: var(--panel);
     backdrop-filter: blur(24px);
@@ -936,6 +963,13 @@
   <button id="conv-menu-delete" class="conv-menu-item danger"></button>
 </div>
 
+<div id="drop-overlay" hidden>
+  <div class="drop-overlay-card">
+    <span id="drop-overlay-icon"></span>
+    <span>Drop files to add them to this chat</span>
+  </div>
+</div>
+
 <div id="status-backdrop" class="modal-backdrop" hidden>
   <div class="modal">
     <div class="modal-header">
@@ -1113,6 +1147,7 @@ const ICONS = {
   x: '<path d="M18 6L6 18M6 6l12 12"/>',
   paperclip: '<path d="M21 12.5l-8.49 8.49a4.24 4.24 0 01-6-6l9.19-9.19a2.83 2.83 0 014 4l-8.49 8.49a1.41 1.41 0 01-2-2l7.78-7.78"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/>',
 };
 
 function icon(name, size) {
@@ -1134,6 +1169,7 @@ document.getElementById("attach").innerHTML = icon("paperclip");
 document.getElementById("status-close").innerHTML = icon("x", 18);
 document.getElementById("memory-close").innerHTML = icon("x", 18);
 document.getElementById("recall-close").innerHTML = icon("x", 18);
+document.getElementById("drop-overlay-icon").innerHTML = icon("upload", 32);
 
 function buildSourceBadge(source) {
   const badge = document.createElement("span");
@@ -1380,9 +1416,7 @@ async function uploadOneFile(file) {
   }
 }
 
-fileInputEl.addEventListener("change", async () => {
-  const files = Array.from(fileInputEl.files);
-  fileInputEl.value = ""; // allow re-selecting the same file(s) later
+async function uploadFiles(files) {
   if (!files.length) return;
 
   attachEl.disabled = true;
@@ -1395,6 +1429,50 @@ fileInputEl.addEventListener("change", async () => {
   loadConversationList();
   attachEl.disabled = false;
   sendEl.disabled = false;
+}
+
+fileInputEl.addEventListener("change", () => {
+  const files = Array.from(fileInputEl.files);
+  fileInputEl.value = ""; // allow re-selecting the same file(s) later
+  uploadFiles(files);
+});
+
+// --- Drag and drop (10/14): drop files anywhere in the window to upload
+// them, same as the attach picker. dragenter/dragleave fire repeatedly as
+// the cursor crosses child elements, so a plain counter tracks net
+// enter/leave depth instead of trusting a single pair of events — the
+// classic fix for the overlay otherwise flickering or sticking.
+const dropOverlay = document.getElementById("drop-overlay");
+let dragDepth = 0;
+
+function isFileDrag(e) {
+  return e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+}
+
+window.addEventListener("dragenter", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  dropOverlay.hidden = false;
+});
+
+window.addEventListener("dragover", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault(); // required for "drop" to fire at all
+});
+
+window.addEventListener("dragleave", (e) => {
+  if (!isFileDrag(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dropOverlay.hidden = true;
+});
+
+window.addEventListener("drop", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  dropOverlay.hidden = true;
+  uploadFiles(Array.from(e.dataTransfer.files));
 });
 
 // --- Conversations sidebar (10/14, ChatGPT-style rework): opening the

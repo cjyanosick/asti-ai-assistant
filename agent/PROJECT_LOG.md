@@ -2130,3 +2130,36 @@ No dedicated GUI panel for browsing/deleting uploaded documents yet
 document search tool (ambient retrieval is conversation-scoped only, by
 design — see above). No chunk/document deletion function yet — nothing
 calls it, so it wasn't built ahead of an actual need.
+
+## Milestone: drag-and-drop file upload
+
+### What Carter asked for
+Drag-and-drop for file uploads, with a visible indicator showing where
+to drop while dragging.
+
+### What changed
+- `index.html`: window-level `dragenter`/`dragover`/`dragleave`/`drop`
+  listeners, gated on `isFileDrag()` (checks `dataTransfer.types`
+  includes `"Files"`) so dragging text/links around the page doesn't
+  trigger it. A `dragDepth` counter tracks net enter/leave —
+  `dragenter`/`dragleave` fire repeatedly as the cursor crosses child
+  elements, so a plain "did I just get one enter event" check would
+  flicker the overlay or leave it stuck; the counter only hides it once
+  it's back to zero.
+- New `#drop-overlay`: a full-window dashed-border card with an upload
+  icon and "Drop files to add them to this chat," `pointer-events: none`
+  so it never intercepts the drag/drop events itself (they're bound to
+  `window`, not the overlay).
+- Refactored the existing upload handler into a shared `uploadFiles()`
+  — both the attach-button picker and the new drop handler call the
+  same function (which itself loops `uploadOneFile()` sequentially,
+  same multi-file pipeline from the previous milestone), so there's one
+  upload path, not two that could drift apart.
+
+### Verification
+CSS brace balance, JS balance, and HTML-parser validity re-checked;
+confirmed both new element ids (`drop-overlay`, `drop-overlay-icon`)
+exist exactly once. No browser automation available in-session — actual
+drag-and-drop interaction (the one part of this milestone that's
+genuinely hard to verify without a real browser) is Carter's to confirm
+directly, more than any other change this session.
