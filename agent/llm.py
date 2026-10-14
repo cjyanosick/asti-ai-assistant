@@ -719,7 +719,7 @@ def ask_llm(conversation_id, prompt, mode="chat", reference=None, pending_memory
         # call, after a real local failure on a coding request (see
         # _code_system_prompt's comment and PROJECT_LOG.md).
         return local_response + (
-            "\n\n💡 Coding requests are best with cloud access — the local "
+            "\n\nTip: coding requests are best with cloud access — the local "
             "model is noticeably less reliable at this. Toggle Cloud on "
             "for better results."
         ), "local"
