@@ -1512,3 +1512,93 @@ that monkeypatches a `from module import name` import.
 Synthesis quality (how well the model actually reasons over what's
 retrieved) still won't match a frontier cloud model — that's the honest
 ceiling discussed before building this, not a bug to fix here.
+
+## Finding: encryption-at-rest roadmap items were already done
+
+### What happened
+Asked to pick up "foundations" work — encryption at rest and the
+extraction-noise cleanup. Before starting on encryption, checked the
+actual code (not just `CLAUDE.md`'s roadmap, which still listed it as
+unstarted) and found `storage.py` already encrypts/decrypts every
+`load_json`/`save_json` call with Fernet, keyed via `config.py`'s
+`keyring`-backed OS Keychain integration — both roadmap #4 and #5,
+already committed (`f55459e`, `14a3fc9`) before this session's summarized
+window even began.
+
+### Verification, not assumption
+Confirmed live against Carter's real data rather than trusting the code
+alone: `build_diagnostics_report()` reports "Encryption at rest: on", and
+the raw bytes of `personal_memory.json` on disk are a genuine Fernet
+token (`gAAAAAB...` prefix) — not parseable as plaintext JSON.
+
+### What this means
+No engineering work was needed here — just correcting `CLAUDE.md`'s
+roadmap, which had drifted out of sync with what was actually built and
+committed. Fixed items 4 and 5 there to say so.
+
+### Open question surfaced, not resolved
+`export_personal_memory()` (the Memory Vault panel's "Export" button)
+writes through the same encrypted `save_json`, so an export is also an
+encrypted blob, not a human-readable backup. Flagged in `CLAUDE.md` —
+unclear if that's actually the right default; needs Carter's call, not
+a silent change either way.
+
+## Milestone: personal memory extraction now requires confirmation
+
+### What Carter asked for ("foundations")
+From `CLAUDE.md`'s GUI Polish list (flagged earlier, not yet fixed):
+`extract_memory()` sometimes saves garbage from ambiguous turns (real
+examples in Carter's own `personal_memory.json`: `other: chat_previous_message
+= "use the chat I just sent to answer why not"`, `other: openai_hack =
+"hack"`). Carter's explicit priority: non-technical users in regulated
+fields won't notice or clean up wrong stored "facts" the way he does, and
+in a regulated context that's closer to a compliance liability than a
+cosmetic bug. The fix needed "real design thought... a confirmation step
+before saving... or both" (tighter criteria + confirmation), not another
+prompt tweak.
+
+### What changed
+- `personal_memory.json` is no longer written just because
+  `extract_memory()` returned `should_remember: true`. `process_turn()`
+  now holds the proposed fact as `pending_memory` and passes it to
+  `ask_llm()` as context for *that turn's response only* — the reply
+  still reads naturally ("got it, noted...") — without committing it to
+  disk.
+- CLI: right after the response prints, if there's a pending fact, it
+  prompts `[memory] Remember X.Y = Z? [y/N]:` and only calls
+  `update_personal_memory()` on `y`.
+- GUI: `/api/chat` returns `pending_memory` alongside the response; a new
+  Save/Discard chip renders under that message (`buildMemoryChip()` in
+  `index.html`). Save calls a new `/api/memory/confirm` route (same
+  validation as `/api/memory/edit`); Discard just removes the chip —
+  nothing was ever written, so there's nothing to undo.
+- Nothing changed about `is_noninformative()`'s existing deterministic
+  filtering (still catches questions/greetings/single-token messages per
+  the 10/13 fix) — this is a second, independent layer for whatever gets
+  past that and still turns out to be noise.
+
+### Verification
+All against real data, nothing left polluted (checked with `md5`/content
+diffs before and after, not just assumption):
+1. `process_turn()` directly: "I just adopted a cat named Whiskers" →
+   response read naturally, `pending_memory` returned as
+   `{people, cat_name, Whiskers}`, `personal_memory.json`'s content
+   provably unchanged (decrypted content diffed byte-for-byte against a
+   pre-test copy — raw ciphertext differs run to run since Fernet uses a
+   random IV, so ciphertext hash alone isn't the right check).
+2. `/api/memory/confirm` via Flask's test client with a throwaway key —
+   wrote correctly, then cleaned up via `/api/memory/forget` immediately.
+3. Full HTTP round trip against the real running server: `/api/chat` with
+   "My favorite coffee order is an oat milk latte" correctly returned
+   `pending_memory`; `/api/memory/confirm` against a throwaway key wrote
+   and was cleaned up the same way. `memory.json`'s test turn was
+   restored from a pre-test backup afterward since that file saves every
+   turn unconditionally by design (conversation history, not something
+   this feature touches).
+This incidentally confirmed the exact noise problem being fixed is real
+and already present: Carter's `other` category currently holds several
+garbage entries matching the examples in `CLAUDE.md` (`openai_hack`,
+`chat_previous_message`, `data_sensitivity`, etc.) — left untouched, not
+cleaned up as part of this fix. Worth asking Carter whether to clean
+those out separately; this milestone stops new noise, it doesn't retroactively
+fix old noise.

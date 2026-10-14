@@ -33,9 +33,9 @@ def chat():
     if not message:
         return jsonify({"error": "message is required"}), 400
 
-    intent, response = process_turn(message, reference=reference)
+    intent, response, pending_memory = process_turn(message, reference=reference)
 
-    return jsonify({"intent": intent, "response": response})
+    return jsonify({"intent": intent, "response": response, "pending_memory": pending_memory})
 
 
 @app.route("/api/history", methods=["GET"])
@@ -95,6 +95,31 @@ def get_memory():
 
 @app.route("/api/memory/edit", methods=["POST"])
 def edit_memory():
+    data = request.get_json(silent=True) or {}
+    category = (data.get("category") or "").strip()
+    key = (data.get("key") or "").strip()
+    value = (data.get("value") or "").strip()
+
+    if not category or not key or not value:
+        return jsonify({"error": "category, key, and value are all required"}), 400
+
+    if category not in ALLOWED_MEMORY_CATEGORIES:
+        return jsonify({
+            "error": f"unknown category '{category}'",
+            "valid_categories": sorted(ALLOWED_MEMORY_CATEGORIES),
+        }), 400
+
+    update_personal_memory(category, key, value)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/memory/confirm", methods=["POST"])
+def confirm_memory():
+    # Extraction-noise fix (10/13): /api/chat no longer saves an extracted
+    # fact to personal_memory.json by itself — it returns it as
+    # `pending_memory` and the GUI shows a Save/Discard chip under that
+    # message. Nothing is written unless the user explicitly hits Save,
+    # which calls this route. Same validation as /api/memory/edit.
     data = request.get_json(silent=True) or {}
     category = (data.get("category") or "").strip()
     key = (data.get("key") or "").strip()

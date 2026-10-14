@@ -584,7 +584,7 @@ def _filter_related_matches(matches, recent_cutoff_idx, fact_tokens):
 
 
 #memory draw injection:
-def ask_llm(prompt, mode="chat", reference=None):
+def ask_llm(prompt, mode="chat", reference=None, pending_memory=None):
     if mode == "general_knowledge":
         # No personal angle to this question. personal_memory.json is never
         # loaded on this path at all — not loaded-then-discarded, genuinely
@@ -633,6 +633,19 @@ def ask_llm(prompt, mode="chat", reference=None):
         )
 
     personal_memory = load_personal_memory() #read structured personal memory
+
+    # Not-yet-confirmed extraction (see process_turn): the response should
+    # still read naturally as if the fact were already known ("got it,
+    # noted your savings goal as 60k") without actually writing it to disk
+    # until the user confirms — see the extraction-noise fix in
+    # CLAUDE.md/PROJECT_LOG.md for why saves are no longer silent. Applied
+    # to a copy only; load_personal_memory()'s real on-disk data is untouched.
+    if pending_memory:
+        personal_memory = dict(personal_memory)
+        category = dict(personal_memory.get(pending_memory["category"], {}))
+        category[pending_memory["key"]] = pending_memory["value"]
+        personal_memory[pending_memory["category"]] = category
+
     personal_memory_text = str(personal_memory) #translate into readable text for llama
 
     if mode == "recall":
@@ -765,14 +778,28 @@ def process_turn(user_input, reference=None):
 
     memory_update = extract_memory(user_input)
 
+    # Extraction-noise fix (flagged in CLAUDE.md's GUI Polish list, fixed
+    # 10/13): personal_memory is no longer written silently just because
+    # the model decided should_remember=True. extract_memory() still gets
+    # things wrong sometimes (e.g. "other: asti_who_am_i = 'asti'" from an
+    # ambiguous exchange), and for a regulated-industry audience a wrong
+    # stored "fact" is closer to a compliance liability than a cosmetic
+    # bug. The proposed fact is surfaced to the user as `pending_memory`
+    # instead — the CLI prompts for y/N right after the response; the GUI
+    # shows a Save/Discard chip — and only written via update_personal_memory()
+    # if the user actually confirms it (CLI inline, GUI's new
+    # /api/memory/confirm route). ask_llm() still sees the proposed value
+    # for this turn's response (see its pending_memory handling) so the
+    # reply still reads naturally, without it being committed yet.
+    pending_memory = None
     if memory_update["should_remember"]:
-        update_personal_memory(
-            memory_update["category"],
-            memory_update["key"],
-            memory_update["value"]
-        )
+        pending_memory = {
+            "category": memory_update["category"],
+            "key": memory_update["key"],
+            "value": memory_update["value"],
+        }
 
-    response = ask_llm(user_input, mode=intent, reference=reference)
+    response = ask_llm(user_input, mode=intent, reference=reference, pending_memory=pending_memory)
 
     # Embed the turn for semantic recall (roadmap #7) — best-effort: if
     # the embedding model isn't available for some reason, still save
@@ -784,7 +811,7 @@ def process_turn(user_input, reference=None):
 
     add_memory(user_input, response, embedding=embedding)
 
-    return intent, response
+    return intent, response, pending_memory
 
 
 if __name__ == "__main__":
@@ -886,7 +913,22 @@ if __name__ == "__main__":
             print()
             continue
 
-        intent, response = process_turn(user_input)
+        intent, response, pending_memory = process_turn(user_input)
         print(f"[intent: {intent}]")
         print("\nAI:", response)
+
+        if pending_memory:
+            prompt_text = (
+                f"\n[memory] Remember {pending_memory['category']}."
+                f"{pending_memory['key']} = {pending_memory['value']}? [y/N]: "
+            )
+            if input(prompt_text).strip().lower() == "y":
+                update_personal_memory(
+                    pending_memory["category"],
+                    pending_memory["key"],
+                    pending_memory["value"],
+                )
+                print("[memory] Saved.")
+            else:
+                print("[memory] Discarded.")
 
