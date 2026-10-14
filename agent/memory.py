@@ -88,6 +88,27 @@ def semantic_search(query_embedding, top_k=5):
 
     return scored[:top_k]
 
+
+def semantic_search_recent(query_embedding, top_k=5):
+    # Same search as semantic_search(), but also returns each match's
+    # position in the full history list. memory.json is append-only, so
+    # list position doubles as a recency signal (no separate timestamp
+    # field exists on each turn) — used by live-chat recall (llm.py) to
+    # break ties between two semantically-similar matches by preferring
+    # the more recent one, without needing to add timestamps everywhere.
+    memory = load_memory()
+    scored = []
+
+    for idx, item in enumerate(memory):
+        if "embedding" not in item:
+            continue
+        score = _cosine_similarity(query_embedding, item["embedding"])
+        scored.append((score, idx, item))
+
+    scored.sort(reverse=True, key=lambda x: x[0])
+
+    return scored[:top_k]
+
 PERSONAL_MEMORY_FILE = "personal_memory.json"
 
 def load_personal_memory():

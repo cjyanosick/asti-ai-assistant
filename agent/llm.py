@@ -1,6 +1,16 @@
 import re
 from model_provider import generate_response, generate_structured_response, generate_cloud_response, generate_embedding
-from memory import add_memory, load_memory, load_personal_memory, update_personal_memory, forget_personal_memory, export_personal_memory, semantic_search
+from memory import (
+    add_memory,
+    load_memory,
+    load_personal_memory,
+    update_personal_memory,
+    forget_personal_memory,
+    export_personal_memory,
+    semantic_search,
+    semantic_search_recent,
+    _cosine_similarity,
+)
 from router import classify_intent
 from outbound_log import load_outbound_log
 from cloud_setting import is_cloud_allowed
@@ -503,6 +513,76 @@ def build_diagnostics_report():
     return "\n".join(lines)
 
 
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokenize(text):
+    return set(_WORD_RE.findall(text.lower()))
+
+
+def _personal_memory_fact_tokens(personal_memory):
+    # Meaningful (4+ char) tokens drawn from every stored key name, across
+    # every category — e.g. "savings_target" contributes {"savings", "target"}.
+    # Used by _filter_related_matches() to recognize when an old semantically-
+    # retrieved conversation turn is actually about a fact personal_memory
+    # already tracks, so it can be dropped instead of handed to the model.
+    tokens = set()
+    for entries in personal_memory.values():
+        for key in entries:
+            tokens.update(t for t in key.split("_") if len(t) >= 4)
+    return tokens
+
+
+def _filter_related_matches(matches, recent_cutoff_idx, fact_tokens):
+    # Turns semantic_search_recent()'s raw top-k into a small, trustworthy
+    # set of background context. Semantic recall over chat was tried once
+    # before and reverted (see PROJECT_LOG.md) because dumping every match
+    # into the prompt let a stale old value ($10,000) outrank the current
+    # personal_memory value ($50,000) — llama3 didn't reliably resolve the
+    # conflict even with explicit "this may be outdated" instructions. This
+    # filters deterministically in Python instead of hoping the model picks
+    # right:
+    #
+    # 1. Drop anything already shown via recent_turns (idx >= cutoff) — no
+    #    point repeating it in a second block.
+    # 2. Drop anything below a relevance floor. semantic_search_recent()
+    #    always returns top_k regardless of relevance; a low cosine score
+    #    means "nothing better matched", not "this is actually related".
+    # 3. Drop anything whose text overlaps a personal_memory key's words —
+    #    the deterministic fix for the proven stale-value bug. Personal
+    #    memory is trusted alone for any fact it already tracks; a
+    #    conflicting old turn about that same fact is never shown at all.
+    # 4. Collapse near-duplicate matches (the same underlying topic
+    #    resurfacing from different points in history) down to just the
+    #    most recent one, using list position as the recency signal (no
+    #    per-turn timestamp exists to do this more precisely).
+    kept = []
+
+    for score, idx, item in matches:
+        if idx >= recent_cutoff_idx:
+            continue
+        if score < 0.5:
+            continue
+
+        text_tokens = _tokenize(f"{item['user']} {item['ai']}")
+        if text_tokens & fact_tokens:
+            continue
+
+        is_duplicate = False
+        for pos, (_, kept_idx, kept_item) in enumerate(kept):
+            if _cosine_similarity(item["embedding"], kept_item["embedding"]) > 0.92:
+                is_duplicate = True
+                if idx > kept_idx:
+                    kept[pos] = (score, idx, item)
+                break
+
+        if not is_duplicate:
+            kept.append((score, idx, item))
+
+    kept.sort(key=lambda x: x[0], reverse=True)
+    return kept[:3]
+
+
 #memory draw injection:
 def ask_llm(prompt, mode="chat", reference=None):
     if mode == "general_knowledge":
@@ -571,24 +651,52 @@ User question:
 """
         return generate_response(recall_prompt)
 
-    # Recent turns only, in order — conversational continuity without dredging
-    # stale facts out of deep history via keyword match. Semantic recall was
-    # tried here too (roadmap #7, second slice) and reverted: injecting
-    # semantically-matched older turns reintroduced the exact stale-value bug
-    # this comment used to warn about — llama3 answered a savings-goal
-    # question from a seeded old turn ($10,000) instead of personal memory
-    # ($50,000), even with explicit "this section may be outdated" language
-    # added to the prompt. One round of stronger instructions didn't fix it
-    # reliably across phrasings, so semantic recall stays an explicit,
-    # user-invoked tool (/recall) rather than silent context injection.
-    # Durable facts live in personal memory — still the only thing recall
-    # mode trusts (see the "authoritative" instruction below).
-    recent_turns = load_memory()[-3:]
+    # Recent turns for conversational continuity, plus filtered semantic
+    # recall for topical background (roadmap #7, third slice). The first
+    # attempt at semantic recall here was reverted — dumping raw matches
+    # into the prompt reintroduced the stale-value bug (an old $10,000 turn
+    # outranked the current $50,000 personal_memory value, even with
+    # "this may be outdated" instructions). This time the staleness/
+    # duplicate problem is solved deterministically in Python
+    # (_filter_related_matches), not by asking the model to judge it, so
+    # semantic recall can go back into every chat turn instead of staying
+    # an explicit, user-invoked-only tool.
+    history = load_memory()
+    recent_turns = history[-3:]
+    recent_cutoff_idx = len(history) - len(recent_turns)
 
     memory_text = ""
 
     for item in recent_turns:
         memory_text += f"User: {item['user']}\nAI: {item['ai']}\n\n"
+
+    try:
+        query_embedding = generate_embedding(prompt)
+        raw_matches = semantic_search_recent(query_embedding, top_k=8)
+    except requests.RequestException:
+        raw_matches = []
+
+    fact_tokens = _personal_memory_fact_tokens(personal_memory)
+    related_matches = _filter_related_matches(raw_matches, recent_cutoff_idx, fact_tokens)
+
+    related_block = ""
+    if related_matches:
+        related_lines = "\n".join(
+            f"- User said: {item['user']}\n  You said: {item['ai']}"
+            for _, _, item in related_matches
+        )
+        related_block = f"""
+
+=== RELATED EARLIER CONVERSATION (background only) ===
+{related_lines}
+This is older conversation that seems related by topic — surfaced because
+it might help you answer naturally, not because it's necessarily current.
+If it conflicts with personal memory above, personal memory is correct and
+this is outdated. Weave it in naturally if genuinely useful (e.g. "like you
+mentioned before...") rather than quoting it verbatim or explaining that
+you searched memory for it.
+=== END RELATED EARLIER CONVERSATION ===
+"""
 
     # Explicit reference (GUI "reply to this message" click): presented
     # distinctly from the general recent-turns block above, since this
@@ -610,7 +718,11 @@ User question:
     full_prompt = f"""
 You are ASTI, a personal assistant for the user. Today's date is {date.today().isoformat()}.
 Respond naturally and conversationally — don't list generic AI capability
-caveats or disclaimers unless the user specifically asks about them.
+caveats or disclaimers unless the user specifically asks about them. When
+something below connects to earlier conversation, reference it naturally
+and confidently, the way an assistant who actually remembers past
+conversations would — don't explain how you found it or that you searched
+memory for it.
 
 Personal memory below is the authoritative source for facts about the user.
 Conversation history is only for conversational tone and context.
@@ -626,6 +738,7 @@ Conversation history:
 
 Personal memory:
 {personal_memory_text}
+{related_block}
 {reference_block}
 User message:
 {prompt}
