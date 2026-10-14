@@ -2022,3 +2022,21 @@ directly (no data written). Live server confirmed serving the updated
 page. No browser automation available in-session — visual confirmation
 of the icons, logo scale, and menu positioning is Carter's, same caveat
 as every GUI pass this session.
+
+## Fix: reference chip permanently visible as an empty bar
+
+### What happened
+Carter asked what the bar above the composer was — it was always
+visible, even with no reference active. It's the "reply to this message"
+chip (`#reference-chip`), meant to stay hidden until the reply icon is
+clicked. Its own CSS sets `display: flex` directly; since an ID selector
+beats the browser's default `[hidden] { display: none }` rule in
+specificity, the `hidden` attribute was silently losing that fight the
+entire time this feature has existed — not something introduced this
+session.
+
+### Fix
+Added `#reference-chip[hidden] { display: none; }`, the exact pattern
+already correctly used for `.conv-menu[hidden]` and
+`.modal-backdrop[hidden]` elsewhere in the same file — those two should
+have been the template from the start.
