@@ -625,7 +625,8 @@ _SAVE_CLAIM_RE = re.compile(
     r"\b(i'?ve|i have|i'?ll|i will|i'?m going to)\s+(also\s+)?(got a note|made a note|noted|saved|stored|"
     r"recorded|updated|added|logged|kept a note|make a note|save|store|record|add|log)\b"
     r"|\b(in|to) (your|my) (personal )?memory\b"
-    r"|\bgot (it|that|this) (noted|saved|down)\b|\bnoted (it|that|this)( down)?\b",
+    r"|\bgot (it|that|this) (noted|saved|down)\b|\bnoted (it|that|this)( down)?\b"
+    r"|\b(taken|take|took) (a )?note\b",
     re.IGNORECASE,
 )
 
