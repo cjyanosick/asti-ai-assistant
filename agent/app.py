@@ -33,9 +33,14 @@ def chat():
     if not message:
         return jsonify({"error": "message is required"}), 400
 
-    intent, response, pending_memory = process_turn(message, reference=reference)
+    intent, response, pending_memory, source = process_turn(message, reference=reference)
 
-    return jsonify({"intent": intent, "response": response, "pending_memory": pending_memory})
+    return jsonify({
+        "intent": intent,
+        "response": response,
+        "pending_memory": pending_memory,
+        "source": source,
+    })
 
 
 @app.route("/api/history", methods=["GET"])
@@ -51,7 +56,7 @@ def get_history():
 
     return jsonify({
         "turns": [
-            {"user": item["user"], "ai": item["ai"]}
+            {"user": item["user"], "ai": item["ai"], "source": item.get("source")}
             for item in history
         ]
     })

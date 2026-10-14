@@ -137,13 +137,25 @@
     border: 1px solid #5c2e30;
     color: #f0a8a8;
   }
+  .msg-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
   .intent-tag {
     display: inline-block;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-dim);
-    margin-bottom: 4px;
+  }
+  .source-badge {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
+    cursor: default;
   }
   .memory-chip {
     display: flex;
@@ -714,18 +726,44 @@ function renderMarkdown(text) {
   return html.join("\n");
 }
 
-function addMessage(role, text, intent, pendingMemory) {
+function buildSourceBadge(source) {
+  const badge = document.createElement("span");
+  badge.className = "source-badge";
+  if (source === "cloud") {
+    badge.textContent = "☁️ Cloud";
+    badge.title = "Answered by the cloud provider (general-knowledge questions only).";
+  } else {
+    badge.textContent = "🖥️ Local";
+    // The old inline disclaimer this replaced said this in prose on every
+    // local-fallback answer; now it's a hover tooltip instead, so the
+    // message body itself stays short (10/13, Carter's call).
+    badge.title = "Answered by the local model — it can confidently state " +
+      "incorrect specifics on topics like events, incidents, or dates. " +
+      "Verify anything specific independently.";
+  }
+  return badge;
+}
+
+function addMessage(role, text, intent, pendingMemory, source) {
   const div = document.createElement("div");
   div.className = "msg " + role;
   if (role === "ai") {
     // Markdown rendering applies to every AI message, not just ones with
     // a known intent — loaded history has no stored intent (never
     // persisted per-turn) but should still render the same way.
-    if (intent) {
-      const tag = document.createElement("div");
-      tag.className = "intent-tag";
-      tag.textContent = intent;
-      div.appendChild(tag);
+    if (intent || source) {
+      const meta = document.createElement("div");
+      meta.className = "msg-meta";
+      if (intent) {
+        const tag = document.createElement("span");
+        tag.className = "intent-tag";
+        tag.textContent = intent;
+        meta.appendChild(tag);
+      }
+      if (source) {
+        meta.appendChild(buildSourceBadge(source));
+      }
+      div.appendChild(meta);
     }
     const body = document.createElement("div");
     body.className = "msg-body";
@@ -870,7 +908,7 @@ async function sendMessage() {
     }
 
     const data = await res.json();
-    addMessage("ai", data.response, data.intent, data.pending_memory);
+    addMessage("ai", data.response, data.intent, data.pending_memory, data.source);
   } catch (e) {
     thinking.remove();
     addMessage("error", "Could not reach ASTI — is the server running?");
@@ -922,7 +960,7 @@ fileInputEl.addEventListener("change", async () => {
     }
 
     const data = await res.json();
-    addMessage("ai", data.summary, "file");
+    addMessage("ai", data.summary, "file", null, "local");
   } catch (e) {
     thinking.remove();
     addMessage("error", "Could not reach ASTI — is the server running?");
@@ -946,7 +984,7 @@ async function loadHistory() {
 
     for (const turn of data.turns) {
       addMessage("user", turn.user);
-      addMessage("ai", turn.ai);
+      addMessage("ai", turn.ai, null, null, turn.source);
     }
 
     const divider = document.createElement("div");

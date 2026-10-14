@@ -11,7 +11,7 @@ def save_memory(memory):
     save_json(MEMORY_FILE, memory)
 
 #memory overwrite behavior
-def add_memory(user, ai, embedding=None):
+def add_memory(user, ai, embedding=None, source=None):
     memory = load_memory()
 
     # detect simple fact updates (color example logic)
@@ -23,6 +23,8 @@ def add_memory(user, ai, embedding=None):
             item["ai"] = ai
             if embedding is not None:
                 item["embedding"] = embedding
+            if source is not None:
+                item["source"] = source
             updated = True
             break
 
@@ -30,6 +32,12 @@ def add_memory(user, ai, embedding=None):
         entry = {"user": user, "ai": ai}
         if embedding is not None:
             entry["embedding"] = embedding
+        # "local" or "cloud" — which provider actually answered this turn.
+        # Backs the GUI's per-message Local/Cloud badge (10/13), including
+        # for history reloaded via /api/history. Turns saved before this
+        # existed just have no "source" key; the GUI skips the badge then.
+        if source is not None:
+            entry["source"] = source
         memory.append(entry)
 
     save_memory(memory)
