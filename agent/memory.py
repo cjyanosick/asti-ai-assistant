@@ -110,6 +110,52 @@ def delete_conversation(conv_id):
     return True
 
 
+def delete_turns_for_document(conv_id, doc_id):
+    # Called alongside documents.py's delete_document() (10/14, document
+    # stress test) — removes the upload-summary turn(s) tagged with this
+    # doc_id via add_memory()'s source_doc_id, so a deleted document's
+    # content actually stops being recallable instead of lingering in
+    # conversation history/semantic recall. Returns the count removed.
+    store = _load_store()
+
+    if conv_id not in store["conversations"]:
+        return 0
+
+    turns = store["conversations"][conv_id]["turns"]
+    kept = [t for t in turns if t.get("source_doc_id") != doc_id]
+    removed = len(turns) - len(kept)
+
+    if removed:
+        store["conversations"][conv_id]["turns"] = kept
+        _save_store(store)
+
+    return removed
+
+
+def delete_turns_by_doc_ids(doc_ids):
+    # Global counterpart to delete_turns_for_document() — backs Settings'
+    # "Clear uploaded documents" (10/14, document stress test), which wipes
+    # documents.json across every conversation at once, not just one.
+    # Scans every conversation since doc_ids aren't conversation-scoped by
+    # themselves at this call site. Returns the count of turns removed.
+    if not doc_ids:
+        return 0
+
+    doc_id_set = set(doc_ids)
+    store = _load_store()
+    removed = 0
+
+    for conv in store["conversations"].values():
+        kept = [t for t in conv["turns"] if t.get("source_doc_id") not in doc_id_set]
+        removed += len(conv["turns"]) - len(kept)
+        conv["turns"] = kept
+
+    if removed:
+        _save_store(store)
+
+    return removed
+
+
 def set_conversation_pinned(conv_id, pinned):
     store = _load_store()
 
@@ -155,7 +201,7 @@ def all_turns():
 
 
 #memory overwrite behavior
-def add_memory(conv_id, user, ai, embedding=None, source=None):
+def add_memory(conv_id, user, ai, embedding=None, source=None, source_doc_id=None):
     store = _load_store()
 
     if conv_id not in store["conversations"]:
@@ -173,6 +219,14 @@ def add_memory(conv_id, user, ai, embedding=None, source=None):
     # this existed just have no "source" key; the GUI skips the badge then.
     if source is not None:
         entry["source"] = source
+    # Links this turn back to the document it summarized (10/14, document
+    # stress test). Found: deleting a document from the Documents panel
+    # removed it from documents.json/search, but the upload-time summary
+    # turn this creates was still sitting in memory.json and still
+    # answerable via it — "delete" didn't actually mean the content was
+    # gone. delete_turns_for_document() uses this to cascade correctly.
+    if source_doc_id is not None:
+        entry["source_doc_id"] = source_doc_id
     conv["turns"].append(entry)
 
     if conv["title"] is None:

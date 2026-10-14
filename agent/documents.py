@@ -139,15 +139,18 @@ def delete_document(conversation_id, doc_id):
 
 
 def delete_all_documents():
-    # Settings panel's "Clear uploaded documents" (10/14) — unlike chat
-    # deletion, this only touches documents.json; conversations and their
-    # turns are untouched. Returns the count removed, for a confirmation
-    # message.
+    # Settings panel's "Clear uploaded documents". Returns (count,
+    # doc_ids) — the caller (app.py) uses doc_ids to also cascade-delete
+    # each document's upload-summary turn from memory.json, same reasoning
+    # as the single-document delete route (document stress test, 10/14):
+    # without this, "Clear uploaded documents" wiped documents.json but
+    # left every document's content fully recallable from conversation
+    # history, which isn't what "clear uploaded documents" should mean.
     store = _load_store()
-    count = len(store["documents"])
-    if count:
+    doc_ids = list(store["documents"].keys())
+    if doc_ids:
         _save_store({"documents": {}, "chunks": []})
-    return count
+    return len(doc_ids), doc_ids
 
 
 def document_stats():
@@ -170,6 +173,14 @@ def search_documents(conversation_id, query_embedding, top_k=5):
     # project's contracts). Brute-force cosine similarity, same as
     # memory.py's semantic search — fine at personal/professional scale
     # (hundreds of chunks per conversation, not millions).
+    #
+    # Returns (score, filename, text, uploaded_at) — uploaded_at added
+    # 10/14 (document stress test): re-uploading a corrected file under
+    # the same filename left both versions in the store with identical
+    # labels and no way for the model to tell which was current; a stale
+    # chunk even scored higher than the corrected one in testing. The
+    # timestamp lets llm.py tell the model which same-named source is
+    # actually the most recent, instead of it guessing.
     store = _load_store()
     scored = []
 
@@ -180,7 +191,42 @@ def search_documents(conversation_id, query_embedding, top_k=5):
         if chunk.get("embedding") is None:
             continue
         score = _cosine_similarity(query_embedding, chunk["embedding"])
-        scored.append((score, doc["filename"], chunk["text"]))
+        scored.append((score, doc["filename"], chunk["text"], doc["uploaded_at"]))
 
     scored.sort(reverse=True, key=lambda x: x[0])
     return scored[:top_k]
+
+
+def search_documents_by_coverage(conversation_id, query_embedding, per_document=1):
+    # Found 10/14 (document-pipeline stress test): plain top-k search is
+    # global across every chunk in the conversation, not per-document — 8
+    # small case files uploaded, asked to "list all clients across every
+    # case file", and only 5 of the 8 ever made the cut. The model then
+    # presented that partial list as if it were complete, with nothing
+    # anywhere saying 3 files were silently left out. For a broad/
+    # enumerative question (see _BROAD_DOCUMENT_QUERY_RE in llm.py), this
+    # guarantees every document contributes at least `per_document`
+    # chunk(s) regardless of its relevance score — the point of a "list
+    # everything" question is coverage, not relevance ranking, so there's
+    # no score threshold here the way search_documents() has one.
+    store = _load_store()
+    by_doc = {}
+
+    for chunk in store["chunks"]:
+        doc = store["documents"].get(chunk["doc_id"])
+        if doc is None or doc["conversation_id"] != conversation_id:
+            continue
+        if chunk.get("embedding") is None:
+            continue
+        score = _cosine_similarity(query_embedding, chunk["embedding"])
+        by_doc.setdefault(chunk["doc_id"], []).append(
+            (score, doc["filename"], chunk["text"], doc["uploaded_at"])
+        )
+
+    results = []
+    for scored_chunks in by_doc.values():
+        scored_chunks.sort(reverse=True, key=lambda x: x[0])
+        results.extend(scored_chunks[:per_document])
+
+    results.sort(reverse=True, key=lambda x: x[0])
+    return results

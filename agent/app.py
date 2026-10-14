@@ -19,6 +19,8 @@ from memory import (
     delete_conversation,
     set_conversation_pinned,
     set_conversation_title,
+    delete_turns_for_document,
+    delete_turns_by_doc_ids,
     load_personal_memory,
     update_personal_memory,
     forget_personal_memory,
@@ -136,6 +138,13 @@ def conversation_documents(conversation_id):
 @app.route("/api/conversations/<conversation_id>/documents/<doc_id>", methods=["DELETE"])
 def delete_conversation_document_route(conversation_id, doc_id):
     if delete_document(conversation_id, doc_id):
+        # Found 10/14 (document stress test): deleting a document only
+        # ever removed it from documents.json/search — the upload-time
+        # summary turn it created in memory.json stayed put and was still
+        # answerable from conversation history alone. Cascades the same
+        # way chat deletion already cascades to documents (10/14, earlier
+        # this session).
+        delete_turns_for_document(conversation_id, doc_id)
         return jsonify({"status": "ok"})
     return jsonify({"error": "document not found in this conversation"}), 404
 
@@ -144,8 +153,11 @@ def delete_conversation_document_route(conversation_id, doc_id):
 def delete_all_documents_route():
     # Settings panel's "Clear uploaded documents" — a standalone bulk
     # action, unlike /api/conversations/<id> delete which only ever
-    # cascades documents for the one chat being removed.
-    deleted = delete_all_documents()
+    # cascades documents for the one chat being removed. Also cascades to
+    # each document's upload-summary turn across every conversation (10/14,
+    # document stress test) — same reasoning as the single-document route.
+    deleted, doc_ids = delete_all_documents()
+    delete_turns_by_doc_ids(doc_ids)
     return jsonify({"status": "ok", "deleted": deleted})
 
 
