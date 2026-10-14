@@ -1683,3 +1683,98 @@ confirming pre-10/13 history entries return `source: null` and the GUI's
 badge logic skips them. Frontend changes passed brace-balance and
 HTML-parser validity checks (no browser automation available in-session;
 final visual check is Carter's).
+
+## Milestone: ChatGPT-style conversations + visual overhaul
+
+### What Carter asked for
+Three things in one request: (1) opening the app should always start a
+brand-new chat, with past chats saved and browsable in a hideable side
+panel, like ChatGPT — not one endless continuous history; (2) remove the
+"local-first personal assistant" header tagline; (3) a visual polish pass,
+especially buttons and colors.
+
+### Data model change — the real risk in this milestone
+`memory.json` was a single flat list of every turn ever, shared app-wide.
+Restructured to `{"conversations": {id: {title, created_at, updated_at,
+turns: [...]}}}` so each chat is its own entity. One-time migration in
+`memory._load_store()`: if the loaded file is still the old flat list,
+it gets wrapped into one conversation (id `"legacy"`, title "Earlier
+conversation") and saved in the new shape immediately — nothing dropped,
+just regrouped.
+**Verified before touching the real file, not after:** backed up the real
+`memory.json` (114 turns at the time — Carter had been testing live
+through the GUI), ran the migration, then decrypted and diffed the
+pre-migration backup's turns against the migrated `"legacy"` conversation's
+turns — `old_turns == new_turns`, byte-for-byte identical. Only after that
+passed did any further testing touch the real file.
+
+### Backend changes
+- `memory.py`: new `create_conversation()`, `get_conversation()`,
+  `list_conversations()` (sidebar listing — only conversations with ≥1
+  turn show up, same as ChatGPT not listing an unused new chat),
+  `all_turns()` (flattened across every conversation). `load_memory()`
+  and `add_memory()` now take `conversation_id`. `semantic_search()`
+  (the explicit Recall panel/CLI `/recall` search) now searches
+  `all_turns()` — deliberately global, "find something I said anywhere."
+  `semantic_search_recent()` (the ambient in-chat ones from the previous
+  milestone) now takes `conversation_id` and is scoped to just that
+  conversation — matches how ChatGPT itself behaves: a chat's own earlier
+  turns are fair game as context, but one chat doesn't bleed into another.
+  Removed `search_memory()` (dead code, no callers, keyword-only,
+  incompatible with the new shape anyway) and a vestigial "detect simple
+  fact updates (color example logic)" block in the old `add_memory()` —
+  leftover toy logic from early development that actually contradicted
+  the "list position = recency" invariant other code now depends on.
+- `llm.py`: `ask_llm()`, `process_turn()`, `read_file_summary()`,
+  `summarize_uploaded_file()`, `_summarize_file_content()` all take
+  `conversation_id` now. `build_diagnostics_report()` switched from
+  `load_memory()` to `all_turns()` for its global turn count. CLI
+  (`__main__`) reuses one fixed id (`"cli"`) across every run — it has no
+  sidebar, so it keeps the old single-continuous-history feel rather than
+  gaining multi-chat complexity it has no UI for.
+- `app.py`: new `POST /api/conversations` (create), `GET /api/conversations`
+  (sidebar list), `GET /api/conversations/<id>` (load one). `/api/chat` and
+  `/api/read` now require `conversation_id`. Removed `/api/history`
+  (superseded by the conversation-scoped routes).
+
+### Frontend changes (`index.html`)
+- New sidebar (`#sidebar`): "+ New chat" button, scrollable conversation
+  list, collapse toggle (hides to width 0; a small ☰ button appears in the
+  header to bring it back). `#app` is now a flex row (sidebar + `#main`)
+  instead of the old single flex column.
+- On page open: always `startNewConversation()` (`POST /api/conversations`),
+  never reload old history by default — matches ChatGPT's own behavior of
+  a fresh chat on open. Clicking a sidebar item loads that conversation's
+  full turns via `openConversation()`. Sending a message refreshes the
+  sidebar afterward so a new chat's auto-generated title (first message,
+  truncated — no extra model call just to name a chat) and reordering
+  show up immediately.
+- Removed the "local-first personal assistant" header tagline — Carter's
+  call, no replacement text added.
+- Visual pass: refined color variables (deeper background, a dedicated
+  sidebar shade, softer borders, an accent-hover variant), transitions and
+  real hover states added across every button (header buttons, send,
+  attach, modal buttons, memory-chip actions), subtle shadows on modals
+  and the composer bar, thin themed scrollbars, slightly larger border
+  radii throughout for a softer shape language. Removed `.history-divider`
+  CSS, now dead code with `loadHistory()` gone.
+
+### Verification
+Backend: migration integrity check (above) plus a full real-HTTP lifecycle
+test against the live server — create conversation → confirm it's hidden
+from the sidebar list until it has a turn → send a message → confirm it
+appears, auto-titled, at the top of the list → reload it by id → confirm
+`/api/history` now 404s. Confirmed `/api/recall` (global search) and
+`/api/status` (diagnostics) both still work correctly against the
+migrated data. All test conversations removed from the real file
+afterward; real `"legacy"` conversation's 114 turns confirmed intact
+throughout. Frontend: brace-balance and HTML-parser validity checks
+passed; every element id referenced by new JS confirmed present in the
+markup. No browser automation available in-session — final visual check
+of the polish pass is Carter's, in his own browser.
+
+### Status
+Committed locally, **not pushed** — this is the largest/most structural
+change this session (real data migration + new API shape + full UI
+rework), so it's waiting on Carter actually testing it before it goes to
+the public repo, not on the usual commit-and-push rhythm.
