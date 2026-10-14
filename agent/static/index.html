@@ -355,6 +355,54 @@
     cursor: default;
   }
   .cloud-feature-icon { display: flex; align-items: center; }
+  /* 10/14: the cloud toggle's icon is a single static SVG (plug + cord +
+     cloud) — CSS alone animates it between states, driven off the same
+     ".on" class renderCloudToggle() already puts on the button. No JS
+     swap needed per toggle; connecting/disconnecting is just this class
+     appearing/disappearing, so it reverses automatically for free. */
+  .plug-cloud-anim { overflow: visible; display: block; }
+  .plug-cloud-anim .plug-group {
+    transform: translateX(-7px);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .cloud-feature.on .plug-cloud-anim .plug-group {
+    transform: translateX(0);
+  }
+  .plug-cloud-anim .plug-body {
+    fill: var(--text-dim);
+    transition: fill 0.3s ease;
+  }
+  .plug-cloud-anim .prong {
+    stroke: var(--text-dim);
+    transition: stroke 0.3s ease;
+  }
+  .cloud-feature.on .plug-cloud-anim .plug-body { fill: var(--text); }
+  .cloud-feature.on .plug-cloud-anim .prong { stroke: var(--text); }
+  .plug-cloud-anim .wire-line {
+    stroke: var(--text-dim);
+    fill: none;
+    stroke-dasharray: 18;
+    stroke-dashoffset: 18;
+    transition: stroke-dashoffset 0.25s ease 0.12s, stroke 0.25s ease 0.12s;
+  }
+  .cloud-feature.on .plug-cloud-anim .wire-line {
+    stroke-dashoffset: 0;
+    stroke: var(--accent);
+  }
+  .plug-cloud-anim .cloud-shape {
+    fill: var(--text-dim);
+    opacity: 0.55;
+    transition: fill 0.3s ease 0.3s, opacity 0.3s ease 0.3s;
+  }
+  .cloud-feature.on .plug-cloud-anim .cloud-shape {
+    fill: var(--accent);
+    opacity: 1;
+    animation: cloud-glow-pulse 2.2s ease-in-out 0.3s infinite;
+  }
+  @keyframes cloud-glow-pulse {
+    0%, 100% { filter: drop-shadow(0 0 2px rgba(232, 128, 92, 0.55)); }
+    50% { filter: drop-shadow(0 0 6px rgba(232, 128, 92, 0.9)); }
+  }
   .cloud-feature-label {
     font-size: 13px;
     font-weight: 600;
@@ -2376,13 +2424,36 @@ const cloudToggleEls = [
   },
 ];
 
+// A plug (with its cord) that slides in and lights up the cloud when
+// connected, and pulls back out — cloud dimming — when disconnected.
+// One static SVG, set once below; every bit of the animation is pure CSS
+// keyed off the ".on" class already toggled on the button (see the
+// .plug-cloud-anim rules), so this markup itself never changes.
+function plugCloudIconSVG() {
+  return '<svg class="plug-cloud-anim" width="36" height="16" viewBox="0 0 52 22" ' +
+    'fill="none" aria-hidden="true">' +
+    '<g class="plug-group">' +
+    '<rect class="plug-body" x="2" y="7" width="10" height="8" rx="2"/>' +
+    '<line class="prong" x1="12" y1="9" x2="16" y2="9" stroke-width="2" stroke-linecap="round"/>' +
+    '<line class="prong" x1="12" y1="15" x2="16" y2="15" stroke-width="2" stroke-linecap="round"/>' +
+    '</g>' +
+    '<path class="wire-line" d="M16 12 H34" stroke-width="2"/>' +
+    '<g transform="translate(32,0) scale(0.78)">' +
+    '<path class="cloud-shape" d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.3 2A4 4 0 006 19h11.5z"/>' +
+    '</g>' +
+    '</svg>';
+}
+
+for (const t of cloudToggleEls) {
+  if (t.icon) t.icon.innerHTML = plugCloudIconSVG();
+}
+
 function renderCloudToggle(allowCloud) {
   for (const t of cloudToggleEls) {
     if (!t.btn) continue;
     t.btn.classList.toggle("on", allowCloud);
     t.btn.setAttribute("aria-checked", allowCloud ? "true" : "false");
     t.btn.dataset.allowCloud = allowCloud ? "1" : "0";
-    t.icon.innerHTML = allowCloud ? icon("cloud", 15) : icon("monitor", 15);
     t.label.textContent = allowCloud ? "Cloud Connected" : "Local Only";
   }
 }
