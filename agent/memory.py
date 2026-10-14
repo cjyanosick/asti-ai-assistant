@@ -1,69 +1,133 @@
 import datetime
+import uuid
 
 from storage import load_json, save_json
 
 MEMORY_FILE = "memory.json"
 
-def load_memory():
-    return load_json(MEMORY_FILE, [])
 
-def save_memory(memory):
-    save_json(MEMORY_FILE, memory)
+def _now():
+    return datetime.datetime.now().isoformat()
+
+
+def _new_conversation(conv_id, now):
+    return {"id": conv_id, "title": None, "created_at": now, "updated_at": now, "turns": []}
+
+
+def _load_store():
+    raw = load_json(MEMORY_FILE, None)
+
+    if raw is None:
+        return {"conversations": {}}
+
+    if isinstance(raw, list):
+        # One-time migration (10/14): memory.json used to be a single flat
+        # list of every turn ever, shared app-wide. Wrapped into one
+        # conversation so the ChatGPT-style "new chat every open, past
+        # chats in a sidebar" model has somewhere to show pre-existing
+        # history — nothing dropped, just regrouped. Saved immediately so
+        # this only runs once.
+        now = _now()
+        conv_id = "legacy"
+        store = {
+            "conversations": {
+                conv_id: {
+                    "id": conv_id,
+                    "title": "Earlier conversation",
+                    "created_at": now,
+                    "updated_at": now,
+                    "turns": raw,
+                }
+            }
+        }
+        _save_store(store)
+        return store
+
+    return raw
+
+
+def _save_store(store):
+    save_json(MEMORY_FILE, store)
+
+
+def create_conversation():
+    conv_id = uuid.uuid4().hex[:12]
+    store = _load_store()
+    store["conversations"][conv_id] = _new_conversation(conv_id, _now())
+    _save_store(store)
+    return conv_id
+
+
+def get_conversation(conv_id):
+    return _load_store()["conversations"].get(conv_id)
+
+
+def list_conversations():
+    # Sidebar listing, newest first. Only conversations with at least one
+    # turn — an empty "New Chat" the user never used isn't a real
+    # conversation worth showing, same as ChatGPT's own sidebar.
+    store = _load_store()
+    items = [
+        {
+            "id": c["id"],
+            "title": c["title"] or "New chat",
+            "created_at": c["created_at"],
+            "updated_at": c["updated_at"],
+        }
+        for c in store["conversations"].values()
+        if c["turns"]
+    ]
+    items.sort(key=lambda c: c["updated_at"], reverse=True)
+    return items
+
+
+def load_memory(conv_id):
+    conv = get_conversation(conv_id)
+    return conv["turns"] if conv else []
+
+
+def all_turns():
+    # Flattened across every conversation — backs global diagnostics
+    # counts and the explicit /recall search, which (unlike live-chat
+    # ambient recall, scoped to the active conversation) is meant to
+    # search everything, like "find something I said," not ambient
+    # context for the model currently answering.
+    store = _load_store()
+    turns = []
+    for conv in store["conversations"].values():
+        turns.extend(conv["turns"])
+    return turns
+
 
 #memory overwrite behavior
-def add_memory(user, ai, embedding=None, source=None):
-    memory = load_memory()
+def add_memory(conv_id, user, ai, embedding=None, source=None):
+    store = _load_store()
 
-    # detect simple fact updates (color example logic)
-    updated = False
+    if conv_id not in store["conversations"]:
+        # Defensive auto-create: the CLI reuses one fixed conversation id
+        # across runs and never calls create_conversation() explicitly.
+        store["conversations"][conv_id] = _new_conversation(conv_id, _now())
 
-    for item in memory:
-        if "favorite color" in user.lower() and "color" in item["user"].lower():
-            item["user"] = user
-            item["ai"] = ai
-            if embedding is not None:
-                item["embedding"] = embedding
-            if source is not None:
-                item["source"] = source
-            updated = True
-            break
+    conv = store["conversations"][conv_id]
 
-    if not updated:
-        entry = {"user": user, "ai": ai}
-        if embedding is not None:
-            entry["embedding"] = embedding
-        # "local" or "cloud" — which provider actually answered this turn.
-        # Backs the GUI's per-message Local/Cloud badge (10/13), including
-        # for history reloaded via /api/history. Turns saved before this
-        # existed just have no "source" key; the GUI skips the badge then.
-        if source is not None:
-            entry["source"] = source
-        memory.append(entry)
+    entry = {"user": user, "ai": ai}
+    if embedding is not None:
+        entry["embedding"] = embedding
+    # "local" or "cloud" — which provider actually answered this turn.
+    # Backs the GUI's per-message Local/Cloud badge. Turns saved before
+    # this existed just have no "source" key; the GUI skips the badge then.
+    if source is not None:
+        entry["source"] = source
+    conv["turns"].append(entry)
 
-    save_memory(memory)
+    if conv["title"] is None:
+        # ChatGPT-style auto title: the first message, truncated — no
+        # extra model call just to name a chat.
+        conv["title"] = user.strip().replace("\n", " ")[:60] or "New chat"
 
-#return relevent memories (data pull)
-    #fix memory logic
-def search_memory(query):
-    memory = load_memory()
-    results = []
+    conv["updated_at"] = _now()
 
-    query_lower = query.lower()
-
-    for item in memory:
-        text = (item["user"] + " " + item["ai"]).lower()
-
-        score = 0
-        for word in query_lower.split():
-            if word in text:
-                score += 1
-
-        if score > 0:
-            results.append((score, item))
-
-    results.sort(reverse=True, key=lambda x: x[0])
-
-    return [item for score, item in results[:5]]
+    _save_store(store)
 
 
 def _cosine_similarity(a, b):
@@ -78,15 +142,15 @@ def _cosine_similarity(a, b):
 
 
 def semantic_search(query_embedding, top_k=5):
+    # Explicit, user-invoked search (the Recall panel, CLI /recall) —
+    # deliberately searches across every conversation, not just the
+    # active one; this is "find something I said," not ambient context.
     # Brute-force cosine similarity — fine at personal-use scale (hundreds
-    # of turns, not millions). A real vector index is a later concern if
-    # this ever needs to scale, not a day-one requirement.
-    # Turns saved before this feature existed have no "embedding" key and
-    # are silently skipped — only going-forward history is searchable here.
-    memory = load_memory()
+    # of turns, not millions). Turns saved before this feature existed
+    # have no "embedding" key and are silently skipped.
     scored = []
 
-    for item in memory:
+    for item in all_turns():
         if "embedding" not in item:
             continue
         score = _cosine_similarity(query_embedding, item["embedding"])
@@ -97,17 +161,18 @@ def semantic_search(query_embedding, top_k=5):
     return scored[:top_k]
 
 
-def semantic_search_recent(query_embedding, top_k=5):
-    # Same search as semantic_search(), but also returns each match's
-    # position in the full history list. memory.json is append-only, so
-    # list position doubles as a recency signal (no separate timestamp
-    # field exists on each turn) — used by live-chat recall (llm.py) to
-    # break ties between two semantically-similar matches by preferring
-    # the more recent one, without needing to add timestamps everywhere.
-    memory = load_memory()
+def semantic_search_recent(query_embedding, conv_id, top_k=5):
+    # Same search, scoped to one conversation — ambient in-chat recall
+    # (llm.py), matching the "new chat" model: a chat's own earlier turns
+    # can surface naturally, but one chat doesn't bleed into another.
+    # A conversation's turns list is append-only, so position within it
+    # doubles as a recency signal (no separate per-turn timestamp) — used
+    # to break ties between two semantically-similar matches by preferring
+    # the more recent one.
+    turns = load_memory(conv_id)
     scored = []
 
-    for idx, item in enumerate(memory):
+    for idx, item in enumerate(turns):
         if "embedding" not in item:
             continue
         score = _cosine_similarity(query_embedding, item["embedding"])

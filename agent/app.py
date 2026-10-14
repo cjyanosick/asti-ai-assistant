@@ -3,7 +3,9 @@ from flask import Flask, request, jsonify, send_from_directory
 from llm import process_turn, summarize_uploaded_file, ALLOWED_MEMORY_CATEGORIES, build_diagnostics_report
 from memory import (
     semantic_search,
-    load_memory,
+    create_conversation,
+    get_conversation,
+    list_conversations,
     load_personal_memory,
     update_personal_memory,
     forget_personal_memory,
@@ -29,11 +31,14 @@ def chat():
     data = request.get_json(silent=True) or {}
     message = (data.get("message") or "").strip()
     reference = (data.get("reference") or "").strip() or None
+    conversation_id = (data.get("conversation_id") or "").strip()
 
     if not message:
         return jsonify({"error": "message is required"}), 400
+    if not conversation_id:
+        return jsonify({"error": "conversation_id is required"}), 400
 
-    intent, response, pending_memory, source = process_turn(message, reference=reference)
+    intent, response, pending_memory, source = process_turn(conversation_id, message, reference=reference)
 
     return jsonify({
         "intent": intent,
@@ -43,22 +48,35 @@ def chat():
     })
 
 
-@app.route("/api/history", methods=["GET"])
-def get_history():
-    # Loaded once on page open so the chat window reads like a continuous
-    # conversation instead of starting empty every time, even though
-    # every turn (cloud-answered or local) is already saved and
-    # searchable via /api/recall regardless. Capped, not the full history
-    # — keeps the page snappy as memory.json grows; Recall is the tool
-    # for finding something specific/older by topic, this is just "what
-    # did we just say."
-    history = load_memory()[-50:]
+@app.route("/api/conversations", methods=["POST"])
+def new_conversation():
+    # ChatGPT-style rework (10/14): the GUI calls this on every page open
+    # and on "New Chat" — each open starts fresh, past chats live in the
+    # sidebar (GET /api/conversations) instead of one endless scroll.
+    conversation_id = create_conversation()
+    return jsonify({"id": conversation_id})
+
+
+@app.route("/api/conversations", methods=["GET"])
+def conversation_list():
+    # Sidebar listing — newest-updated first, empty/unused chats omitted
+    # (see list_conversations()'s own comment for why).
+    return jsonify({"conversations": list_conversations()})
+
+
+@app.route("/api/conversations/<conversation_id>", methods=["GET"])
+def conversation_detail(conversation_id):
+    conv = get_conversation(conversation_id)
+    if conv is None:
+        return jsonify({"error": "conversation not found"}), 404
 
     return jsonify({
+        "id": conv["id"],
+        "title": conv["title"],
         "turns": [
-            {"user": item["user"], "ai": item["ai"], "source": item.get("source")}
-            for item in history
-        ]
+            {"user": t["user"], "ai": t["ai"], "source": t.get("source")}
+            for t in conv["turns"]
+        ],
     })
 
 
@@ -87,8 +105,12 @@ def read_file():
     if "file" not in request.files or request.files["file"].filename == "":
         return jsonify({"error": "file is required"}), 400
 
+    conversation_id = (request.form.get("conversation_id") or "").strip()
+    if not conversation_id:
+        return jsonify({"error": "conversation_id is required"}), 400
+
     uploaded = request.files["file"]
-    summary = summarize_uploaded_file(uploaded.filename, uploaded.read())
+    summary = summarize_uploaded_file(conversation_id, uploaded.filename, uploaded.read())
 
     return jsonify({"filename": uploaded.filename, "summary": summary})
 

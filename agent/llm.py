@@ -3,6 +3,10 @@ from model_provider import generate_response, generate_structured_response, gene
 from memory import (
     add_memory,
     load_memory,
+    all_turns,
+    create_conversation,
+    get_conversation,
+    list_conversations,
     load_personal_memory,
     update_personal_memory,
     forget_personal_memory,
@@ -450,7 +454,7 @@ def _extract_text(filename, raw_bytes):
         )
 
 
-def _summarize_file_content(label, content):
+def _summarize_file_content(conversation_id, label, content):
     # Shared core for both file-read paths (CLI path-based, GUI upload
     # bytes-based) so there's one summarization implementation, not two
     # that could drift apart. Always local (generate_response, never
@@ -482,12 +486,12 @@ def _summarize_file_content(label, content):
         embedding = generate_embedding(f"{turn_user}\n{summary}")
     except requests.RequestException:
         embedding = None
-    add_memory(turn_user, summary, embedding=embedding)
+    add_memory(conversation_id, turn_user, summary, embedding=embedding, source="local")
 
     return summary
 
 
-def read_file_summary(path):
+def read_file_summary(conversation_id, path):
     # File tools, first slice (CLI entry point). Plain open(), not
     # storage.py — that boundary is for ASTI's own encrypted data stores,
     # not arbitrary external files the user points it at.
@@ -509,19 +513,16 @@ def read_file_summary(path):
     if error:
         return error
 
-    return _summarize_file_content(path, content)
+    return _summarize_file_content(conversation_id, path, content)
 
 
-def summarize_uploaded_file(filename, raw_bytes):
-    # File tools (GUI entry point, upload via app.py's /api/read). No
-    # persistence yet — same as /read, this is a one-shot summary, not
-    # saved to conversation history or personal memory. Persistence is a
-    # deliberately separate future slice.
+def summarize_uploaded_file(conversation_id, filename, raw_bytes):
+    # File tools (GUI entry point, upload via app.py's /api/read).
     content, error = _extract_text(filename, raw_bytes)
     if error:
         return error
 
-    return _summarize_file_content(filename, content)
+    return _summarize_file_content(conversation_id, filename, content)
 
 
 def build_diagnostics_report():
@@ -539,7 +540,10 @@ def build_diagnostics_report():
 
     outbound = load_outbound_log()
 
-    history = load_memory()
+    # Diagnostics counts across every conversation, not just one — this is
+    # a global summary, unlike the ambient in-chat recall below which is
+    # deliberately scoped to the active conversation.
+    history = all_turns()
     embedded_turns = sum(1 for item in history if "embedding" in item)
 
     lines = [
@@ -628,7 +632,7 @@ def _filter_related_matches(matches, recent_cutoff_idx, fact_tokens):
 
 
 #memory draw injection:
-def ask_llm(prompt, mode="chat", reference=None, pending_memory=None):
+def ask_llm(conversation_id, prompt, mode="chat", reference=None, pending_memory=None):
     if mode == "general_knowledge":
         # No personal angle to this question. personal_memory.json is never
         # loaded on this path at all — not loaded-then-discarded, genuinely
@@ -713,7 +717,13 @@ User question:
     # (_filter_related_matches), not by asking the model to judge it, so
     # semantic recall can go back into every chat turn instead of staying
     # an explicit, user-invoked-only tool.
-    history = load_memory()
+    #
+    # Scoped to this one conversation (10/14, the "new chat" rework) —
+    # matches how ChatGPT itself behaves: a chat's own earlier turns are
+    # fair game as ambient context, but one chat doesn't bleed into
+    # another. Searching *everything* is still available, just moved to
+    # the explicit Recall panel/command instead of happening automatically.
+    history = load_memory(conversation_id)
     recent_turns = history[-3:]
     recent_cutoff_idx = len(history) - len(recent_turns)
 
@@ -724,7 +734,7 @@ User question:
 
     try:
         query_embedding = generate_embedding(prompt)
-        raw_matches = semantic_search_recent(query_embedding, top_k=8)
+        raw_matches = semantic_search_recent(query_embedding, conversation_id, top_k=8)
     except requests.RequestException:
         raw_matches = []
 
@@ -801,10 +811,16 @@ User message:
 
 #input ask
 # input ask
-def process_turn(user_input, reference=None):
+def process_turn(conversation_id, user_input, reference=None):
     # The actual "have a conversation" pipeline — shared by the CLI loop
     # below and app.py's web UI, so both interfaces run identical logic
     # instead of risking two copies drifting apart over time.
+    #
+    # `conversation_id`: which chat this turn belongs to (10/14, the
+    # ChatGPT-style rework) — the GUI creates a fresh one every time it's
+    # opened and reuses it until "New Chat" is clicked or a past chat is
+    # reopened from the sidebar; the CLI reuses one fixed id across runs
+    # (see __main__ below), keeping its old single-continuous-history feel.
     #
     # Deterministic short-circuit (fixed 10/13, see _is_cloud_status_question):
     # "are you local or cloud right now" has an exact answer sitting in
@@ -816,7 +832,7 @@ def process_turn(user_input, reference=None):
             embedding = generate_embedding(f"{user_input}\n{response}")
         except requests.RequestException:
             embedding = None
-        add_memory(user_input, response, embedding=embedding)
+        add_memory(conversation_id, user_input, response, embedding=embedding)
         return "status", response, None, None
 
     # `reference`: the GUI lets the user click an earlier message to
@@ -851,7 +867,9 @@ def process_turn(user_input, reference=None):
             "value": memory_update["value"],
         }
 
-    response, source = ask_llm(user_input, mode=intent, reference=reference, pending_memory=pending_memory)
+    response, source = ask_llm(
+        conversation_id, user_input, mode=intent, reference=reference, pending_memory=pending_memory
+    )
 
     # Embed the turn for semantic recall (roadmap #7) — best-effort: if
     # the embedding model isn't available for some reason, still save
@@ -862,15 +880,20 @@ def process_turn(user_input, reference=None):
         embedding = None
 
     # `source` ("local"/"cloud") persisted alongside the turn (10/13) so
-    # the GUI's Local/Cloud badge (replacing the old inline disclaimer
-    # text) still renders correctly for history reloaded via /api/history,
-    # not just live messages.
-    add_memory(user_input, response, embedding=embedding, source=source)
+    # the GUI's Local/Cloud badge renders correctly for history reloaded
+    # from the sidebar, not just live messages.
+    add_memory(conversation_id, user_input, response, embedding=embedding, source=source)
 
     return intent, response, pending_memory, source
 
 
 if __name__ == "__main__":
+    # The GUI creates a fresh conversation every time it's opened (10/14,
+    # the ChatGPT-style rework) and browses past ones via a sidebar. The
+    # CLI doesn't have a sidebar, so it just reuses one fixed id across
+    # every run — same continuous-history feel it always had.
+    CLI_CONVERSATION_ID = "cli"
+
     while True:
         user_input = input("\nYou: ")
 
@@ -965,11 +988,11 @@ if __name__ == "__main__":
                 print("\nUsage: /read <path>")
                 continue
             print("\n--- File Summary ---")
-            print(read_file_summary(parts[1].strip()))
+            print(read_file_summary(CLI_CONVERSATION_ID, parts[1].strip()))
             print()
             continue
 
-        intent, response, pending_memory, source = process_turn(user_input)
+        intent, response, pending_memory, source = process_turn(CLI_CONVERSATION_ID, user_input)
         tag = f"[intent: {intent}" + (f", source: {source}]" if source else "]")
         print(tag)
         print("\nAI:", response)
