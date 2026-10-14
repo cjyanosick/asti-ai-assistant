@@ -1602,3 +1602,36 @@ garbage entries matching the examples in `CLAUDE.md` (`openai_hack`,
 cleaned up as part of this fix. Worth asking Carter whether to clean
 those out separately; this milestone stops new noise, it doesn't retroactively
 fix old noise.
+
+## Fix: "are you local or cloud" now answers deterministically
+
+### What happened
+While checking message history after the API key rotation, found a
+vivid real example of the known llama3-overconfidence limitation: with
+cloud toggled off, Carter asked "are you local or cloud right now" and
+the local model confidently answered "I'm running on Anthropic's cloud
+infrastructure... a distributed instance... across data centers" —
+false — with the correct "⚠️ Answered locally (cloud is off)" disclaimer
+tacked on right after, producing one self-contradicting message.
+
+### Fix
+`process_turn()` now checks for this exact class of question
+(`_is_cloud_status_question()`, a regex requiring both "local" and
+"cloud" — or "running locally" — near a self-referential question word)
+before the model is ever involved, and answers it directly from
+`is_cloud_allowed()` + the configured provider/model — the same
+deterministic-override precedent as `router.py`'s file-reference regex.
+No LLM call happens for this case at all, so there's nothing for it to
+get wrong.
+
+### Verification
+Tested both branches directly against real state (not mocked): with
+cloud off (Carter's real current setting), got "Cloud is OFF right now
+— I'm answering entirely locally via ollama's llama3:latest..."; toggled
+to on and re-tested, got "Cloud is ON right now — ... answered by
+anthropic's claude-haiku-4-5..."; restored the real cloud setting back
+to off immediately after. Also tested live through the running server
+(Flask's debug reloader had already auto-restarted on the file change)
+via a real HTTP call — correct response, then removed that test turn
+from `memory.json` afterward, same restore-after-test discipline as
+every other real-data test this session.
