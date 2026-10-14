@@ -2395,3 +2395,27 @@ JavaScriptCore, and the `getElementById`-vs-`id=` cross-check (clean).
 Live server confirmed serving the updated page throughout. Actual
 Finder-window appearance is Carter's to confirm, same caveat as every
 GUI change this session.
+
+## Local-vs-cloud now visible on the message bubble itself, not just the badge
+
+### What changed
+The small source badge (cloud/local, with a tooltip) already existed
+under each AI reply, but it's easy to miss at a glance. Carter asked
+for the bubble itself to change color/border based on source. AI
+messages now get a 3px colored left edge: blue (`#5b8dbd`, the same
+cool family as the user bubble — "stays here") for local, the brand
+accent orange for cloud — the same color the header's cloud toggle
+turns when it's on, so "this color = left the device" reads the same
+way everywhere in the app, not just here. `addMessage()` adds
+`source-local`/`source-cloud` to the bubble's class list only for AI
+messages with a known source; messages with neither (the deterministic
+`status` short-circuit, for example) get no added color, correctly.
+
+### Verification
+HTML-parser validity, brace/paren/bracket balance, and full-script-block
+syntax (JavaScriptCore) re-checked. The exact class-assignment logic
+(role + source → class list) was run in isolation across every
+combination — cloud, local, null, undefined, and non-"ai" roles — and
+confirmed the color class is added only when it should be. Live server
+confirmed serving the updated page. Actual color/contrast in a real
+browser is Carter's to confirm.
