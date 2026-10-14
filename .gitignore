@@ -22,3 +22,7 @@ __pycache__/
 
 # virtual environment — recreate with: python3 -m venv venv && venv/bin/pip install -r requirements.txt
 venv/
+
+# Claude Code's own local tooling state — settings and background-agent
+# worktrees, not project content
+.claude/
