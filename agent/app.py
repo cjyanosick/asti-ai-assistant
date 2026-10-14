@@ -15,7 +15,7 @@ from memory import (
 )
 from model_provider import generate_embedding
 from cloud_setting import is_cloud_allowed, set_cloud_allowed
-from documents import list_documents
+from documents import list_documents, delete_documents_for_conversation
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 # Basic safety net against an accidental huge upload — not a hard
@@ -87,6 +87,11 @@ def conversation_detail(conversation_id):
 @app.route("/api/conversations/<conversation_id>", methods=["DELETE"])
 def delete_conversation_route(conversation_id):
     if delete_conversation(conversation_id):
+        # Found 10/14: deleting a chat only ever removed its memory.json
+        # turns — any documents uploaded to it were silently orphaned in
+        # documents.json forever. "Delete chat" has to mean its documents
+        # are actually gone too, not quietly retained.
+        delete_documents_for_conversation(conversation_id)
         return jsonify({"status": "ok"})
     return jsonify({"error": "conversation not found"}), 404
 

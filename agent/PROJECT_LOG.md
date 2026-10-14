@@ -2180,3 +2180,38 @@ CSS brace balance, JS balance, and HTML-parser validity re-checked.
 Live server confirmed still serving the page. The animation itself
 (timing, whether the spin/pulse actually reads well in motion) isn't
 something a structural check can confirm — Carter's to look at.
+
+## Fix: deleting a chat now deletes its documents too
+
+### What happened
+Carter asked whether deleting a chat deletes what ASTI "learned" from
+it or just the words. Answer surfaced a real bug while checking:
+`delete_conversation()` only ever removed `memory.json`'s turns —
+anything uploaded to that chat stayed permanently orphaned in
+`documents.json`, with no deletion path at all. Confirmed this wasn't
+theoretical: Carter's real `documents.json` already had 3 orphaned
+entries (real invoice files) from a chat he'd already deleted.
+
+### What "delete" actually means now, for the record
+- Conversation turns + their embeddings: deleted, fully.
+- Confirmed/saved personal_memory.json facts: **not** deleted by chat
+  deletion — that's a deliberately separate, persistent store (the
+  Memory panel's delete is the right tool for removing a specific
+  learned fact).
+- Uploaded documents attached to that chat: now deleted too (this fix).
+
+### What changed
+`documents.py`: new `delete_documents_for_conversation(conversation_id)`
+— removes every document and chunk belonging to that conversation.
+`app.py`'s `DELETE /api/conversations/<id>` route now calls it right
+after `delete_conversation()` succeeds.
+
+### Verification
+Throwaway conversation + throwaway document, via the real HTTP delete
+route — confirmed the document existed before, was gone after, and the
+conversation count was unaffected otherwise. Then, with Carter's
+explicit go-ahead, ran the new function directly against the real
+`documents.json` for the already-deleted conversation id that owned the
+3 real orphaned entries — confirmed all 3 removed, `documents.json` back
+to empty (nothing else in it at the time). Live server confirmed
+reloaded and serving correctly after the code change.

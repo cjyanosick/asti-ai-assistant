@@ -96,6 +96,31 @@ def list_documents(conversation_id):
     ]
 
 
+def delete_documents_for_conversation(conversation_id):
+    # Called when a conversation is deleted (app.py) — found as a real
+    # bug 10/14: deleting a chat only ever removed memory.json's turns,
+    # leaving that chat's uploaded documents permanently orphaned in
+    # documents.json with no way to remove them at all. "Delete chat"
+    # has to mean its document content is actually gone too, not quietly
+    # retained — especially for this product's stated use case (a
+    # lawyer's case files, a business's real documents).
+    store = _load_store()
+    doc_ids = {
+        doc_id for doc_id, d in store["documents"].items()
+        if d["conversation_id"] == conversation_id
+    }
+
+    if not doc_ids:
+        return 0
+
+    for doc_id in doc_ids:
+        del store["documents"][doc_id]
+    store["chunks"] = [c for c in store["chunks"] if c["doc_id"] not in doc_ids]
+
+    _save_store(store)
+    return len(doc_ids)
+
+
 def search_documents(conversation_id, query_embedding, top_k=5):
     # Scoped to one conversation on purpose — ambient document context for
     # the model answering a question shouldn't mix documents from an
