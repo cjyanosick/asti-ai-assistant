@@ -26,7 +26,7 @@ from memory import (
 )
 from model_provider import generate_embedding
 from cloud_setting import is_cloud_allowed, set_cloud_allowed
-from documents import list_documents, delete_documents_for_conversation, delete_all_documents
+from documents import list_documents, delete_documents_for_conversation, delete_all_documents, delete_document
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 # Basic safety net against an accidental huge upload — not a hard
@@ -116,10 +116,9 @@ def delete_conversation_route(conversation_id):
 
 @app.route("/api/conversations/<conversation_id>/documents", methods=["GET"])
 def conversation_documents(conversation_id):
-    # Visibility into what's actually been chunked/embedded for this
-    # chat (multi-document querying, 10/14) — no dedicated GUI panel for
-    # this yet, but the data's available for one later without any
-    # backend work.
+    # Visibility into what's actually been chunked/embedded for this chat
+    # (multi-document querying, 10/14). Backs the GUI's Documents panel
+    # (10/14) — browse/delete individual uploads for the active chat.
     docs = list_documents(conversation_id)
     return jsonify({
         "documents": [
@@ -132,6 +131,13 @@ def conversation_documents(conversation_id):
             for d in docs
         ]
     })
+
+
+@app.route("/api/conversations/<conversation_id>/documents/<doc_id>", methods=["DELETE"])
+def delete_conversation_document_route(conversation_id, doc_id):
+    if delete_document(conversation_id, doc_id):
+        return jsonify({"status": "ok"})
+    return jsonify({"error": "document not found in this conversation"}), 404
 
 
 @app.route("/api/documents", methods=["DELETE"])

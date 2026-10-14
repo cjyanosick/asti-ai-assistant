@@ -2656,3 +2656,94 @@ model is the real fix (CLAUDE.md "known limitation" option 2).
 - **Workflow change (Carter, 10/14).** Agents now write `PROJECT_LOG.md`
   entries themselves and commit + push every change, instead of handing
   over "COMMIT NOW"/"DOCUMENT NOW" text.
+
+## Three small open decisions, resolved
+
+### What changed
+After reviewing the stress-test pass, Carter asked to resolve the small
+open items it (and earlier roadmap notes) had left pending, and to get
+options for the model-quality ceiling separately (see next entry).
+
+**Export now produces a readable file.** `export_personal_memory()`
+(`memory.py`) wrote through `storage.py`'s encrypted `save_json()`, so
+the Memory panel's "Export" button produced another encrypted blob —
+indistinguishable from the live store, not a usable backup. This was
+flagged as an open question in CLAUDE.md roadmap #4 since 10/13. Now
+writes plain JSON directly via `open()`/`json.dump()`, bypassing
+encryption on purpose: the file only exists because the user explicitly
+asked for a portable copy, so it's on them from that point, same as any
+deliberate export.
+
+**Bare pronoun follow-ups in personal-memory extraction.** CLAUDE.md's
+"Current State" section had flagged this as a known, unfixed limitation
+since the project's early days: "instead make it 50k" with no noun gives
+`extract_memory()` nothing to resolve "it" against. The exact same root
+cause was already fixed for intent routing in the stress-test pass
+(`_route()` passes the previous message to `classify_intent()`) — same
+fix applied here. `extract_memory()` now takes an optional
+`previous_message`, included in the extraction prompt explicitly scoped
+to pronoun resolution only ("do not extract a fact from this line
+itself, only from the current message"), so a fact-bearing previous
+turn can't get double-counted. `process_turn()` fetches
+`load_memory(conversation_id)` and passes the last turn's user message
+in, mirroring `_route()`'s own pattern exactly.
+
+**Documents panel in the GUI.** The lawyer/multi-document feature (built
+10/14, documented above) had a listing endpoint
+(`GET /api/conversations/<id>/documents`) but no way to see or remove
+individual uploads from the GUI — flagged as "not built yet" in roadmap
+#3. New `delete_document(conversation_id, doc_id)` in `documents.py`
+(conversation-scoped on purpose: a doc_id alone can't delete something
+from a chat you're not looking at) and
+`DELETE /api/conversations/<id>/documents/<doc_id>` in `app.py`. GUI:
+a "Documents in this chat" panel (new file icon, composer row, next to
+attach) lists filename/chunk count/upload time with a per-document
+delete, reusing the Memory panel's row/empty-state CSS rather than
+duplicating it.
+
+### Verification
+**Export:** ran directly against Carter's real `personal_memory.json` —
+confirmed the resulting file opens as plain JSON with all six
+categories intact (no backup/restore needed, since this only reads the
+live store and writes a new file, never touches the source).
+
+**Pronoun fix:** ran `extract_memory()` directly against the exact
+documented failing case — "instead make it 50k" with
+`previous_message="my savings goal is 10k"`. Without the fix:
+`category="other", subject="amount"`, and `reconcile_key()` then matched
+the bad candidate onto the wrong existing key
+(`other.request_honesty`) — a second, compounding failure on top of the
+category miss. With the fix: `category="goals", subject="savings"`,
+correctly reconciled to the existing `goals.savings_target` key. This
+was a read-only test against real `personal_memory.json` (`extract_memory()`
+only returns a proposed dict; nothing is written until a separate
+explicit confirm step) — no backup/restore needed.
+
+**Documents panel:** backed up the real (already-empty) `documents.json`
+first per standing rule, then exercised the new route end to end via
+the Flask test client with a throwaway conversation and two throwaway
+documents — confirmed the list, confirmed a cross-conversation delete
+attempt correctly 404s (can't delete a real document by guessing its id
+against the wrong conversation), confirmed the correct delete removes
+only the targeted document, confirmed a nonexistent doc_id 404s.
+Restored `documents.json` from backup and re-verified it matched
+exactly. Full structural sweep re-run on `static/index.html`:
+HTML-parser validity, brace/paren/bracket balance, full-script-block
+syntax via JavaScriptCore, the `getElementById`-vs-`id=` cross-check,
+and the new file icon's SVG validated as well-formed XML. Live server
+confirmed serving the updated page and the new routes throughout.
+Actual panel appearance is Carter's to confirm in a real browser.
+
+### Not done yet, flagged rather than assumed
+The stress test's writeup also named two real personal-memory entries
+with garbled values, left untouched pending Carter's call — not
+addressed here, since which two entries he means wasn't fully
+unambiguous from the writeup alone, and this is real personal data,
+not something to guess at. Best candidates from inspecting
+`personal_memory.json` directly: `goals.savings_target = "2026"` (the
+exact corruption documented in CLAUDE.md's 10/13 "Resolved" entry — a
+bare "2026" overwrote the real $50,000 value) and either
+`preferences.preference_for_aisle_seats_when_flying = "prefer aisle
+seats when flying"` (the key just restates the value) or
+`goals.basketball_learning_goal = "this year"` (a timeframe, not an
+actual goal). Flagged back to Carter rather than deleted.

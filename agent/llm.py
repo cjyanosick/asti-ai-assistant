@@ -428,7 +428,7 @@ _FULL_NAME_RE = re.compile(r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b")
 _OWN_NAME_RE = re.compile(r"\b(my name is|i'm called|call me)\b", re.IGNORECASE)
 
 
-def extract_memory(prompt):
+def extract_memory(prompt, previous_message=None):
     if is_noninformative(prompt):
         return {"should_remember": False}
 
@@ -449,9 +449,29 @@ def extract_memory(prompt):
     if _REQUEST_RE.match(prompt):
         return {"should_remember": False}
 
+    # Known limitation (CLAUDE.md, documented 9/14): a bare pronoun
+    # follow-up with no noun ("instead make it 50k") gives the model
+    # nothing to resolve "it" against, so it can guess the wrong category/
+    # subject entirely. Fixed 10/14 by giving it the one thing it was
+    # missing — what the previous message actually said — same pattern
+    # already proven out for intent routing (router.py's classify_intent).
+    # Explicitly scoped to resolving the pronoun only, not as a second
+    # source of facts, so a fact-bearing previous turn doesn't get
+    # re-extracted a second time here.
+    context_block = ""
+    if previous_message:
+        context_block = f"""
+For context only, in case the current message is a bare follow-up or
+correction that only makes sense next to it (e.g. "instead make it 50k",
+"actually make that Tuesday"). Use it only to understand what a pronoun
+like "it"/"that" refers to — do not extract a fact from this line itself,
+only from the current message below.
+Previous message: "{previous_message}"
+"""
+
     memory_prompt = f"""
 Analyze the user's message and decide whether it contains a useful personal fact worth remembering.
-
+{context_block}
 User message:
 {prompt}
 
@@ -1336,7 +1356,9 @@ def process_turn(conversation_id, user_input, reference=None):
 
     intent = "chat" if reference else _route(conversation_id, user_input)
 
-    memory_update = extract_memory(user_input)
+    history = load_memory(conversation_id)
+    previous_message = history[-1]["user"] if history else None
+    memory_update = extract_memory(user_input, previous_message=previous_message)
 
     # Extraction-noise fix (flagged in CLAUDE.md's GUI Polish list, fixed
     # 10/13): personal_memory is no longer written silently just because

@@ -1,4 +1,5 @@
 import datetime
+import json
 import uuid
 
 from storage import load_json, save_json
@@ -277,9 +278,17 @@ def forget_personal_memory(category, key):
     return True
 
 def export_personal_memory():
+    # Resolved 10/14 (CLAUDE.md roadmap #4's open question): "export" means
+    # a portable copy the user can actually open and read — not another
+    # encrypted blob indistinguishable from the live store, which is what
+    # routing this through storage.py's save_json() produced before.
+    # Written directly as plain JSON, bypassing encryption on purpose: this
+    # file only exists because the user explicitly asked for a copy that
+    # leaves the protected store, same as any deliberate export/backup.
     memory = load_personal_memory()
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"memory_export_{timestamp}.json"
 
-    save_json(filename, memory)
+    with open(filename, "w") as f:
+        json.dump(memory, f, indent=2)
     return filename
