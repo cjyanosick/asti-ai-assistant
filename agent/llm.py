@@ -18,6 +18,7 @@ from memory import (
 from router import classify_intent
 from outbound_log import load_outbound_log
 from cloud_setting import is_cloud_allowed
+from documents import add_document, list_documents, search_documents
 from config import (
     DEFAULT_PROVIDER,
     DEFAULT_MODEL,
@@ -476,17 +477,33 @@ def _summarize_file_content(conversation_id, label, content):
     # generate_cloud_response) — file content could be anything, so there's
     # no cloud option here yet, unlike general_knowledge.
     truncated = len(content) > MAX_FILE_READ_CHARS
-    if truncated:
-        content = content[:MAX_FILE_READ_CHARS]
+    summary_content = content[:MAX_FILE_READ_CHARS] if truncated else content
 
-    user_prompt = f"File: {label}\n\nContent:\n{content}"
+    user_prompt = f"File: {label}\n\nContent:\n{summary_content}"
     summary = generate_response(user_prompt, system=_file_summary_system_prompt())
+
+    # Document storage (roadmap: multi-document querying, built 10/14):
+    # chunked and embedded from the FULL content, not the truncated
+    # summary_content above — MAX_FILE_READ_CHARS was only ever meant to
+    # cap one quick immediate summary, not the ceiling on what a document
+    # feature could actually handle. Scoped to this conversation; searched
+    # back in via ask_llm()'s chat branch on later questions.
+    try:
+        add_document(conversation_id, label, content, generate_embedding)
+        doc_note = " It's stored and searchable in this chat going forward."
+    except Exception:
+        # Best-effort: the immediate summary above already succeeded and
+        # is worth keeping even if chunk storage/embedding failed for some
+        # reason (e.g. Ollama briefly unreachable).
+        doc_note = ""
 
     if truncated:
         summary += (
             f"\n\n(This file is long — only the first {MAX_FILE_READ_CHARS} "
-            f"characters were read.)"
+            f"characters were used for this summary.{doc_note})"
         )
+    elif doc_note:
+        summary += f"\n\n({doc_note.strip()})"
 
     # Persistence (file tools, second slice): save the read into
     # conversation history, same path every chat turn already uses — gets
@@ -809,6 +826,39 @@ you searched memory for it.
 === END RELATED EARLIER CONVERSATION ===
 """
 
+    # Document context (multi-document querying, built 10/14): same
+    # ambient-retrieval pattern as related_block above, scoped to this
+    # conversation's uploaded documents (documents.py never mixes chunks
+    # across conversations — see its own comment for why). Never reaches
+    # a cloud-bound mode; only the always-local chat branch sees it, same
+    # "file content never leaves the machine" rule file reads already
+    # followed before this feature existed.
+    document_block = ""
+    try:
+        doc_query_embedding = generate_embedding(prompt)
+        doc_matches = [
+            m for m in search_documents(conversation_id, doc_query_embedding, top_k=5)
+            if m[0] >= 0.5
+        ]
+    except requests.RequestException:
+        doc_matches = []
+
+    if doc_matches:
+        doc_lines = "\n\n".join(
+            f'From "{filename}":\n"{text}"' for _, filename, text in doc_matches
+        )
+        document_block = f"""
+
+=== RELEVANT DOCUMENT EXCERPTS ===
+{doc_lines}
+These are excerpts from documents the user uploaded to this conversation.
+Cite the filename when you use something from them (e.g. "according to
+report.pdf..."). If these excerpts don't actually answer the question,
+say so rather than guessing — don't invent document content that isn't
+shown here.
+=== END RELEVANT DOCUMENT EXCERPTS ===
+"""
+
     # Explicit reference (GUI "reply to this message" click): presented
     # distinctly from the general recent-turns block above, since this
     # isn't ambient context — the user deliberately pointed at this exact
@@ -850,6 +900,7 @@ Conversation history:
 Personal memory:
 {personal_memory_text}
 {related_block}
+{document_block}
 {reference_block}
 User message:
 {prompt}

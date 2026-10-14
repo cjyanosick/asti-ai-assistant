@@ -924,7 +924,7 @@
     </div>
     <div id="composer">
       <button id="attach" title="Attach a file"></button>
-      <input id="file-input" type="file" hidden>
+      <input id="file-input" type="file" hidden multiple>
       <textarea id="input" rows="1" placeholder="Message ASTI..."></textarea>
       <button id="send">Send</button>
     </div>
@@ -1344,18 +1344,18 @@ inputEl.addEventListener("keydown", (e) => {
 });
 sendEl.addEventListener("click", sendMessage);
 
-// --- File upload (GUI entry point for file tools — no persistence yet,
-// each upload is a one-shot summary, same as the CLI's /read) ---
+// --- File upload (GUI entry point for file tools). Multi-file (10/14):
+// each file still gets an immediate one-shot summary same as before, but
+// is also chunked/embedded and stored for this conversation (see
+// documents.py), so later questions in this chat can draw on the full
+// document, not just its summary. Files are uploaded one at a time, in
+// sequence — not in parallel — since documents.json is a single
+// read-modify-write file; parallel uploads could race and clobber each
+// other's writes.
 attachEl.addEventListener("click", () => fileInputEl.click());
 
-fileInputEl.addEventListener("change", async () => {
-  const file = fileInputEl.files[0];
-  fileInputEl.value = ""; // allow re-selecting the same file later
-  if (!file) return;
-
+async function uploadOneFile(file) {
   addMessage("user", "Attached: " + file.name);
-  attachEl.disabled = true;
-  sendEl.disabled = true;
   const thinking = addThinking();
 
   const formData = new FormData();
@@ -1374,14 +1374,27 @@ fileInputEl.addEventListener("change", async () => {
 
     const data = await res.json();
     addMessage("ai", data.summary, "file", null, "local");
-    loadConversationList();
   } catch (e) {
     thinking.remove();
     addMessage("error", "Could not reach ASTI — is the server running?");
-  } finally {
-    attachEl.disabled = false;
-    sendEl.disabled = false;
   }
+}
+
+fileInputEl.addEventListener("change", async () => {
+  const files = Array.from(fileInputEl.files);
+  fileInputEl.value = ""; // allow re-selecting the same file(s) later
+  if (!files.length) return;
+
+  attachEl.disabled = true;
+  sendEl.disabled = true;
+
+  for (const file of files) {
+    await uploadOneFile(file);
+  }
+
+  loadConversationList();
+  attachEl.disabled = false;
+  sendEl.disabled = false;
 });
 
 // --- Conversations sidebar (10/14, ChatGPT-style rework): opening the
