@@ -134,6 +134,50 @@ _SMALL_TALK = {
     "sure", "np",
 }
 
+_CLOUD_STATUS_RE = re.compile(
+    r"\b(are you|is this|is asti|which model|what model)\b.{0,40}\b(local|cloud)\b.{0,40}\b(local|cloud)\b",
+    re.IGNORECASE,
+)
+_RUNNING_LOCALLY_RE = re.compile(
+    r"\b(are you|is this|is asti)\b.{0,40}\brunning locally\b",
+    re.IGNORECASE,
+)
+
+
+def _is_cloud_status_question(message):
+    # Deterministic override (same precedent as router.py's file-reference
+    # regex): "are you local or cloud right now" has an exact, known-for-
+    # certain answer sitting in is_cloud_allowed() — there's nothing for an
+    # LLM to usefully guess here. Caught in the wild (found 10/13): asked
+    # with cloud toggled off, llama3 confidently answered "I'm running on
+    # Anthropic's cloud infrastructure... a distributed instance... across
+    # data centers" — false, with the correct "answered locally" disclaimer
+    # tacked on right after, producing a single self-contradicting message.
+    # Routing this past the model entirely avoids that class of mistake.
+    return bool(_CLOUD_STATUS_RE.search(message) or _RUNNING_LOCALLY_RE.search(message))
+
+
+def _cloud_status_answer():
+    if is_cloud_allowed() and CLOUD_API_KEY:
+        return (
+            f"Cloud is ON right now — general-knowledge questions like this one are "
+            f"answered by {CLOUD_PROVIDER}'s {CLOUD_MODEL} in the cloud. Anything "
+            f"personal (your preferences, goals, people, etc.) always stays local "
+            f"regardless of this setting — it's never sent to the cloud provider."
+        )
+    if is_cloud_allowed() and not CLOUD_API_KEY:
+        return (
+            "Cloud is toggled ON, but no API key is configured, so everything is "
+            f"actually answering locally right now via {DEFAULT_PROVIDER}'s "
+            f"{DEFAULT_MODEL} — including this message."
+        )
+    return (
+        f"Cloud is OFF right now — I'm answering entirely locally via "
+        f"{DEFAULT_PROVIDER}'s {DEFAULT_MODEL}, including this message. Nothing is "
+        f"leaving your machine."
+    )
+
+
 _notified_cloud_disabled = False
 
 
@@ -767,6 +811,19 @@ def process_turn(user_input, reference=None):
     # below and app.py's web UI, so both interfaces run identical logic
     # instead of risking two copies drifting apart over time.
     #
+    # Deterministic short-circuit (fixed 10/13, see _is_cloud_status_question):
+    # "are you local or cloud right now" has an exact answer sitting in
+    # is_cloud_allowed() already — skip the model and the rest of the
+    # pipeline entirely rather than risk it guessing wrong about itself.
+    if not reference and _is_cloud_status_question(user_input):
+        response = _cloud_status_answer()
+        try:
+            embedding = generate_embedding(f"{user_input}\n{response}")
+        except requests.RequestException:
+            embedding = None
+        add_memory(user_input, response, embedding=embedding)
+        return "status", response, None
+
     # `reference`: the GUI lets the user click an earlier message to
     # explicitly reference it, instead of relying on the model to guess
     # what "it"/"that" means from fuzzy recent-turns context — the same
