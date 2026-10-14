@@ -1976,3 +1976,49 @@ present exactly once in the markup; confirmed no leftover references to
 the removed old switch/label element ids. No browser automation
 available in-session — as with every visual change this session, the
 actual look is Carter's call once he's seen it.
+
+## Milestone: icon system, bigger logo, right-click/"..." chat menu
+
+### What Carter asked for
+Approved and pushed the prior GUI milestone, then asked for the next
+pass: (1) remove emoji entirely — "it looks rudimentary"; (2) make the
+"ASTI" logo "way bigger," pushed as "completely into something much
+cooler and different," not just a resize; (3) replace the sidebar's
+always-both pin/delete icons with a single "..." button or right-click,
+opening a small menu instead.
+
+### What changed
+- New dependency-free SVG icon system: an `ICONS` lookup of 15 plain
+  stroke-based paths (`currentColor`, no fill) and an `icon(name, size)`
+  helper, same no-CDN-dependency principle as the markdown renderer.
+  Replaced every emoji/symbol across the app — sidebar controls, the
+  utility toolbar, the cloud feature, message source badges, the reply
+  button, modal close buttons, attach, and the memory vault's edit/
+  delete buttons. The one backend-generated emoji (the code-request
+  "Tip:" message in `llm.py`) also lost its 💡 prefix for consistency.
+  Static icon buttons get their markup filled in once on load instead of
+  baking emoji into the HTML, so `ICONS` is the single source of truth.
+- Logo: mark grew from 22px to 34px with a stronger glow and a playful
+  hover rotation+scale (`cubic-bezier` spring easing); wordmark grew from
+  18px to 30px, weight 900, and switched back to gradient-filled text
+  (plain solid color read as too plain at this size) — a real logo
+  lockup now, not a resize of the same treatment.
+- Sidebar items: the always-visible pin+delete icon pair is gone,
+  replaced by a single hover-reveal "..." button plus a right-click
+  handler on the whole item — both open the same shared `#conv-menu`
+  (Pin/Unpin, Delete), positioned at the click point and clamped to stay
+  inside the viewport. Delete still confirms before doing anything, same
+  as before.
+
+### Verification
+Every `icon("name")` call cross-checked against the `ICONS` table — all
+15 match, no typos. Full-file scan for remaining emoji/pictograph
+characters (Unicode emoji ranges) — none found; the one hit (→) is a
+plain typographic arrow in existing UI text, not a pictograph, left as
+is. CSS brace balance, JS balance, and HTML-parser validity re-checked
+after the full rework. Confirmed `llm.py` still imports cleanly and the
+code-request tip message now reads "Tip: ..." with no emoji, tested
+directly (no data written). Live server confirmed serving the updated
+page. No browser automation available in-session — visual confirmation
+of the icons, logo scale, and menu positioning is Carter's, same caveat
+as every GUI pass this session.
