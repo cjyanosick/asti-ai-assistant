@@ -120,6 +120,21 @@ def set_conversation_pinned(conv_id, pinned):
     return True
 
 
+def set_conversation_title(conv_id, title):
+    # Manual rename (10/14) — overrides the auto-title set from the first
+    # message in add_memory(). An empty/whitespace-only title is rejected
+    # by the caller (app.py), not here; this just writes whatever string
+    # it's given.
+    store = _load_store()
+
+    if conv_id not in store["conversations"]:
+        return False
+
+    store["conversations"][conv_id]["title"] = title
+    _save_store(store)
+    return True
+
+
 def load_memory(conv_id):
     conv = get_conversation(conv_id)
     return conv["turns"] if conv else []

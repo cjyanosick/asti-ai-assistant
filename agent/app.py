@@ -18,6 +18,7 @@ from memory import (
     list_conversations,
     delete_conversation,
     set_conversation_pinned,
+    set_conversation_title,
     load_personal_memory,
     update_personal_memory,
     forget_personal_memory,
@@ -152,6 +153,22 @@ def pin_conversation_route(conversation_id):
 
     if set_conversation_pinned(conversation_id, pinned):
         return jsonify({"status": "ok", "pinned": pinned})
+    return jsonify({"error": "conversation not found"}), 404
+
+
+@app.route("/api/conversations/<conversation_id>/title", methods=["POST"])
+def rename_conversation_route(conversation_id):
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+    # Same 60-char cap add_memory()'s auto-title already follows — a manual
+    # rename shouldn't be able to blow out the sidebar layout either.
+    title = title[:60]
+
+    if set_conversation_title(conversation_id, title):
+        return jsonify({"status": "ok", "title": title})
     return jsonify({"error": "conversation not found"}), 404
 
 

@@ -2419,3 +2419,35 @@ combination — cloud, local, null, undefined, and non-"ai" roles — and
 confirmed the color class is added only when it should be. Live server
 confirmed serving the updated page. Actual color/contrast in a real
 browser is Carter's to confirm.
+
+## Rename a chat from the sidebar
+
+### What changed
+Chats only ever had their auto-generated title (first message,
+truncated to 60 chars) — no way to rename one. `memory.py`:
+`set_conversation_title(conv_id, title)`, same shape as the existing
+`set_conversation_pinned()`. `app.py`: `POST
+/api/conversations/<id>/title`, rejects an empty/whitespace title (400)
+and truncates to 60 chars, same cap the auto-title already follows.
+
+GUI: a "Rename" entry added to the existing "..."/right-click chat menu,
+above Pin and Delete. Renaming swaps the sidebar row's title text for an
+inline `<input>` right in place (Finder/ChatGPT-sidebar style, not a
+modal — too small a task to warrant one) — Enter or clicking away saves,
+Escape cancels. A `settled` flag guards against double-firing when
+Escape's own list refresh triggers the input's blur event on removal.
+
+### Verification
+New backend function/route tested directly via a throwaway conversation:
+rename before any turns exist, empty-title rejection (400), rename of a
+nonexistent conversation (404), and long-title truncation to 60 chars —
+all correct. Full end-to-end flow also run through the real `/api/chat`
+path (one real local-model turn, to get the conversation into the
+sidebar-visible state) → confirmed auto-title → renamed → confirmed new
+title via `GET /api/conversations` → deleted the throwaway conversation.
+Real conversation count checked before and after (7, unchanged).
+Structural sweep re-run: HTML-parser validity, brace/paren/bracket
+balance, full-script-block syntax via JavaScriptCore, and the
+`getElementById`-vs-`id=` cross-check (clean). The in-place input's
+actual look, and the Enter/Escape/blur interaction feel, are Carter's to
+confirm in a real browser.
