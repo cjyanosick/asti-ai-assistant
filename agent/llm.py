@@ -1592,8 +1592,10 @@ if __name__ == "__main__":
                 valid = ", ".join(sorted(ALLOWED_MEMORY_CATEGORIES))
                 print(f"\nUnknown category '{category}'. Valid categories: {valid}")
                 continue
-            update_personal_memory(category, key, value)
-            print(f"\nSet {category}.{key} = {value}")
+            if update_personal_memory(category, key, value):
+                print(f"\nSet {category}.{key} = {value}")
+            else:
+                print(f"\nCouldn't set that — key/value must not be empty after normalization.")
             continue
 
         if user_input.strip() == "/export":
@@ -1659,12 +1661,16 @@ if __name__ == "__main__":
                 f"{pending_memory['key']} = {pending_memory['value']}? [y/N]: "
             )
             if input(prompt_text).strip().lower() == "y":
-                update_personal_memory(
+                if update_personal_memory(
                     pending_memory["category"],
                     pending_memory["key"],
                     pending_memory["value"],
-                )
-                print("[memory] Saved.")
+                ):
+                    print("[memory] Saved.")
+                else:
+                    print("[memory] Couldn't save — the extracted key was empty "
+                          "after normalization (likely an emoji/punctuation-only "
+                          "statement with nothing alphanumeric in it).")
             else:
                 print("[memory] Discarded.")
 
