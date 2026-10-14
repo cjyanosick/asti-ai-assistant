@@ -653,7 +653,7 @@ def ask_llm(prompt, mode="chat", reference=None, pending_memory=None):
                     f"\n\n(Your message was long — only the first "
                     f"{MAX_CLOUD_PROMPT_CHARS} characters were sent to the cloud provider.)"
                 )
-            return response
+            return response, "cloud"
 
         # User-chosen opt-out, not a silent fallback: cloud disabled means
         # every intent answers locally, even the ones that would normally
@@ -661,20 +661,15 @@ def ask_llm(prompt, mode="chat", reference=None, pending_memory=None):
         _notify_cloud_disabled_once()
         local_response = generate_response(prompt, system=system_prompt)
 
-        # Deterministic, not model-trusted: tried telling llama3 to admit
-        # uncertainty instead of inventing plausible-sounding specifics
-        # (events, incidents, dates) — it still confidently fabricated a
-        # detailed but entirely fake story on a real test question. Claude
-        # handled the identical question correctly, so this is a genuine
-        # capability gap in the small local model, not fixable by
-        # rewording the instruction. Since the model can't be trusted to
-        # flag its own unreliability here, Python does it unconditionally
-        # on every local-fallback general_knowledge answer instead.
-        return local_response + (
-            "\n\n⚠️ Answered locally (cloud is off) — the local model can "
-            "confidently state incorrect specifics on topics like events, "
-            "incidents, or dates. Verify anything specific independently."
-        )
+        # The long inline disclaimer this used to append ("⚠️ Answered
+        # locally...") was replaced 10/13 with the GUI's per-message
+        # Local/Cloud badge (see index.html) — Carter's call, to stop the
+        # response body itself from being padded out by it. The underlying
+        # risk this was warning about is real and unchanged (llama3 will
+        # still confidently fabricate specifics on events/incidents/dates
+        # it doesn't know, proven by direct test earlier this project) —
+        # it just now lives as the badge's hover title instead of prose.
+        return local_response, "local"
 
     personal_memory = load_personal_memory() #read structured personal memory
 
@@ -706,7 +701,7 @@ Personal memory:
 User question:
 {prompt}
 """
-        return generate_response(recall_prompt)
+        return generate_response(recall_prompt), "local"
 
     # Recent turns for conversational continuity, plus filtered semantic
     # recall for topical background (roadmap #7, third slice). The first
@@ -801,7 +796,7 @@ User message:
 {prompt}
 """
 
-    return generate_response(full_prompt)
+    return generate_response(full_prompt), "local"
 
 
 #input ask
@@ -822,7 +817,7 @@ def process_turn(user_input, reference=None):
         except requests.RequestException:
             embedding = None
         add_memory(user_input, response, embedding=embedding)
-        return "status", response, None
+        return "status", response, None, None
 
     # `reference`: the GUI lets the user click an earlier message to
     # explicitly reference it, instead of relying on the model to guess
@@ -856,7 +851,7 @@ def process_turn(user_input, reference=None):
             "value": memory_update["value"],
         }
 
-    response = ask_llm(user_input, mode=intent, reference=reference, pending_memory=pending_memory)
+    response, source = ask_llm(user_input, mode=intent, reference=reference, pending_memory=pending_memory)
 
     # Embed the turn for semantic recall (roadmap #7) — best-effort: if
     # the embedding model isn't available for some reason, still save
@@ -866,9 +861,13 @@ def process_turn(user_input, reference=None):
     except requests.RequestException:
         embedding = None
 
-    add_memory(user_input, response, embedding=embedding)
+    # `source` ("local"/"cloud") persisted alongside the turn (10/13) so
+    # the GUI's Local/Cloud badge (replacing the old inline disclaimer
+    # text) still renders correctly for history reloaded via /api/history,
+    # not just live messages.
+    add_memory(user_input, response, embedding=embedding, source=source)
 
-    return intent, response, pending_memory
+    return intent, response, pending_memory, source
 
 
 if __name__ == "__main__":
@@ -970,8 +969,9 @@ if __name__ == "__main__":
             print()
             continue
 
-        intent, response, pending_memory = process_turn(user_input)
-        print(f"[intent: {intent}]")
+        intent, response, pending_memory, source = process_turn(user_input)
+        tag = f"[intent: {intent}" + (f", source: {source}]" if source else "]")
+        print(tag)
         print("\nAI:", response)
 
         if pending_memory:

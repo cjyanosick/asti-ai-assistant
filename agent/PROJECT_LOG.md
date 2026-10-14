@@ -1635,3 +1635,51 @@ to off immediately after. Also tested live through the running server
 via a real HTTP call — correct response, then removed that test turn
 from `memory.json` afterward, same restore-after-test discipline as
 every other real-data test this session.
+
+## GUI polish: Local/Cloud badge replaces the inline disclaimer
+
+### What Carter asked for
+Remove the "⚠️ Answered locally (cloud is off)..." text appended to
+local-fallback `general_knowledge` answers — it was padding out the
+response body too much — and instead show a compact per-message
+indicator (emoji + "local"/"cloud") on every AI response so it's always
+clear where an answer came from.
+
+### What changed
+- `ask_llm()` now returns `(response_text, source)` instead of a bare
+  string across every branch (`"cloud"` for the successful cloud path,
+  `"local"` everywhere else — chat, recall, and the local-fallback
+  general_knowledge path). The old disclaimer text is gone from the
+  response body entirely; `process_turn()` now returns a 4-tuple
+  (`intent, response, pending_memory, source`) and the CLI/`/api/chat`
+  call sites were updated to match.
+- `memory.py`'s `add_memory()` takes an optional `source` and persists
+  it per turn, so `source` survives into `memory.json` — needed so
+  history reloaded via `/api/history` on page open shows the same badge
+  as live messages, not just the current session. Turns saved before
+  this existed simply have no `source` key; the GUI skips the badge for
+  those rather than guessing.
+- `index.html`: new `.msg-meta` row holds the existing intent tag plus a
+  new `buildSourceBadge()` span ("☁️ Cloud" / "🖥️ Local"). The safety
+  information the old disclaimer carried wasn't dropped — it's now the
+  Local badge's hover `title` tooltip instead of inline prose, so it's
+  available without taking up visible space on every message.
+- The new deterministic "are you local or cloud" short-circuit
+  (previous milestone) deliberately gets no badge — `source` is `None`
+  for it, since no model actually answered; the GUI treats a missing
+  `source` as "don't render a badge," same as pre-10/13 history.
+- File-summary responses (`/api/read`) always pass `source: "local"` —
+  that path has no cloud option at all, so this is just a direct label,
+  not an inference.
+
+### Verification
+All against real data, backed up and restored after (`md5`-checked):
+chat/recall/general_knowledge all correctly tagged "local" with cloud
+off; toggled cloud on and confirmed general_knowledge correctly tagged
+"cloud", then restored the real setting; confirmed the response body no
+longer has any disclaimer text appended. Repeated through the actual
+running server over real HTTP (`/api/chat` and `/api/history`), including
+confirming pre-10/13 history entries return `source: null` and the GUI's
+badge logic skips them. Frontend changes passed brace-balance and
+HTML-parser validity checks (no browser automation available in-session;
+final visual check is Carter's).
