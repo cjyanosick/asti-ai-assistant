@@ -2451,3 +2451,43 @@ balance, full-script-block syntax via JavaScriptCore, and the
 `getElementById`-vs-`id=` cross-check (clean). The in-place input's
 actual look, and the Enter/Escape/blur interaction feel, are Carter's to
 confirm in a real browser.
+
+## Cloud toggle: plug-and-cloud connect/disconnect animation
+
+### What changed
+Carter asked for a literal animation on the cloud toggle: a plug with a
+cord connecting to a cloud, the cloud lighting up on connect, and the
+plug pulling back out — cloud dimming — on disconnect. Replaced the
+toggle's swapped cloud/monitor icon with a single static inline SVG
+(plug body + two prongs, a cord, a cloud shape reusing the existing
+`ICONS.cloud` path) injected once at setup via `plugCloudIconSVG()` —
+not re-rendered on every toggle. Every bit of the animation is plain CSS
+keyed off the `.on` class `renderCloudToggle()` already puts on the
+button:
+- **Plug** slides from pulled-back (`translateX(-7px)`, dim color) to
+  plugged-in (`translateX(0)`, full color).
+- **Cord** "draws" from plug to cloud via `stroke-dasharray`/
+  `stroke-dashoffset` (18 → 0), switching from dim to the brand accent
+  color as it completes.
+- **Cloud** goes from dim/translucent to full accent color with a
+  continuous soft `drop-shadow` pulse (`cloud-glow-pulse` keyframes)
+  while connected — reads as "powered."
+
+Because this is pure CSS reacting to a class, disconnecting is the same
+transition running in reverse automatically (no separate "unplug"
+animation needed) — plug slides back out, cord retracts, cloud's glow
+and color fade back to dim. Used in both the header toggle and its
+mirrored copy in Settings; both already shared one render path, so one
+animation definition covers both.
+
+### Verification
+Full structural sweep: HTML-parser validity, brace/paren/bracket
+balance, full-script-block syntax via JavaScriptCore, and the
+`getElementById`-vs-`id=` cross-check (clean). The exact SVG string the
+function produces was extracted from the actual shipped source (not
+retyped) and parsed as XML to confirm it's well-formed markup, not just
+visually plausible. Checked for any pre-existing global `svg {...}` CSS
+rule that could've silently overridden the new class-based fill/stroke
+styling — none exists. Live server confirmed serving the updated page.
+The animation's actual motion/timing/feel — the one thing no structural
+check can confirm — is Carter's to watch in a real browser.
