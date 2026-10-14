@@ -309,6 +309,20 @@ def save_personal_memory(memory):
     save_json(PERSONAL_MEMORY_FILE, memory)
 
 def add_personal_memory(category, key, value):
+    # Found 10/14 (memory/conversation stress test): an emoji-only or
+    # punctuation-only statement ("my favorite emoji is 🎉") survives
+    # extract_memory()'s should_remember check, but normalize_key() strips
+    # every non-alphanumeric character and can reduce the result to an
+    # empty string. app.py's /api/memory/edit and /confirm routes already
+    # reject an empty key before ever calling this — but the CLI's y/N
+    # confirm and /edit command called update_personal_memory() directly,
+    # with no such guard, and would silently write a real
+    # {"": "some value"} entry into personal_memory.json. Validating here
+    # instead of only at the route layer means every caller is protected,
+    # not just the ones that remembered to check first.
+    if not category or not key or not value:
+        return False
+
     memory = load_personal_memory()
 
     if category not in memory:
@@ -317,9 +331,10 @@ def add_personal_memory(category, key, value):
     memory[category][key] = value
 
     save_personal_memory(memory)
+    return True
 
 def update_personal_memory(category, key, value): #keep memory managemnet seperate from the main conversation logic
-    add_personal_memory(category, key, value)
+    return add_personal_memory(category, key, value)
 
 def forget_personal_memory(category, key):
     memory = load_personal_memory()
