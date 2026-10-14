@@ -2747,3 +2747,54 @@ bare "2026" overwrote the real $50,000 value) and either
 seats when flying"` (the key just restates the value) or
 `goals.basketball_learning_goal = "this year"` (a timeframe, not an
 actual goal). Flagged back to Carter rather than deleted.
+
+## Local model swap test: llama3:latest → qwen2.5:14b
+
+### What changed
+For the model-quality ceiling the stress test left unfixed (fabricated
+citations, wrong specific figures, thin clinical/legal answers), Carter
+chose option 1 from the options given: try a bigger local model. No
+code change was needed — `config.py` already reads the local model from
+`ASTI_LOCAL_MODEL` (default `llama3:latest`), just never set to
+anything else. Pulled `qwen2.5:14b` (9.0GB; machine is an M1 Pro, 32GB
+unified memory — comfortable headroom), set `ASTI_LOCAL_MODEL=qwen2.5:14b`
+in `.env` with a comment on how to revert, and restarted the server
+(both the reloader parent and child killed and relaunched, since `.env`
+is only read at process start, not on file-watch).
+
+### Verification — same three failure categories the stress test found
+- **Thin clinical/legal-ethics answers:** asked the exact shape of
+  question that was flagged thin (a therapist's duty-to-warn
+  obligations). qwen2.5:14b gave a genuinely structured, substantive
+  answer — named the actual legal concept (duty to protect), and broke
+  down specificity/imminence, identified-victim, reporting obligations,
+  professional guidelines, documentation, and consultation. A real,
+  clear improvement over the "thin" baseline.
+- **Wrong specific figures:** asked for the 2026 401k contribution
+  limit. Correctly declined to guess a number and said to check current
+  IRS guidance instead — the right behavior, where `llama3` would
+  confidently state a specific (and likely wrong) figure.
+- **Fabricated case citations:** asked for a leading Ohio at-will-
+  employment case, twice (direct `ask_llm()` call and the full
+  `process_turn()` pipeline). Both times it produced a specific,
+  plausible-looking citation (different each time) that doesn't appear
+  to be real — this failure mode is **not fixed** by the bigger model.
+  Confirmed the existing Python-enforced caution
+  (`_CASE_CITATION_RE` in llm.py) still correctly attaches the
+  verify-independently warning regardless, so the product-level
+  protection holds even though the underlying model limitation persists.
+- **No regressions:** `classify_intent()` (general_knowledge/code),
+  `contains_sensitive_details()` (SSN pattern), and the full
+  `/api/chat` pipeline including memory extraction were all re-run
+  directly against the live server with a throwaway conversation —
+  correct on every count.
+- **Speed:** a plain factual question answered in ~1s — no meaningful
+  latency regression noticed for ordinary use on this hardware.
+
+### Current state
+This swap is live right now (not just tested in isolation) — the
+running server is answering with `qwen2.5:14b`. Carter hasn't yet said
+whether to keep it as the new default or revert; nothing about this
+needed a commit (`.env` is gitignored, `config.py` itself didn't
+change), so there's nothing to push either way — reverting is just
+removing the `.env` line and restarting.
