@@ -3163,3 +3163,68 @@ exactly accurate. Separately confirmed the CLI path (`process_turn()`
 with no `allow_memory_extraction` argument) is completely unaffected —
 still proposes `pending_memory` normally. Real conversation count
 checked before and after (7, unchanged).
+
+## Pressure test: personal-memory-removed-from-GUI change (background agent, isolated worktree)
+
+### What was tested
+A background agent, forked into an isolated worktree, adversarially
+re-tested the "personal memory is CLI-only now" change from the two
+entries directly above — specifically looking for anything the
+original build-and-verify pass might have missed. Scope: every
+GUI-reachable path through `process_turn()`, whether the removed
+routes are actually non-functional, whether Settings' two remaining
+memory actions still work now that `/edit`/`/confirm` are gone, whether
+the CLI path is truly untouched, and whether any indirect route could
+still write to `personal_memory.json` from the GUI.
+
+### What it found
+**No bugs.** This is the finding, not a non-result — the change held
+up under deliberate pressure, not just its own original happy-path
+verification. Specifically confirmed:
+- Every GUI-reachable path through `process_turn()` — a plain
+  preference statement, the cloud-status short-circuit, the crisis
+  short-circuit, a document-chat question, and an ambiguous-correction-
+  shaped message — returns `pending_memory: None`, and
+  `personal_memory.json` never even got created on disk across any of
+  them (this worktree started with none).
+- An exhaustive audit of every `@app.route` in `app.py`, plus every
+  call site of `extract_memory()`/`update_personal_memory()`/
+  `add_personal_memory()` in `llm.py`, confirms there is no remaining
+  path — direct or indirect — from the GUI to writing
+  `personal_memory.json`. The file-upload path (`summarize_uploaded_file`)
+  was already deliberately not running extraction before this change;
+  confirmed that's still true, and confirmed a document containing text
+  trying to get ASTI to "remember" something doesn't create an exception
+  to any of this either.
+- Settings' `/api/memory/export` and the "Forget all remembered facts"
+  flow (`GET /api/memory` + `/api/memory/forget` per entry, same loop
+  the GUI runs) both still work correctly end to end, run for real
+  against data actually populated through the real CLI confirm step
+  (`update_personal_memory()`), not synthetic JSON.
+- The CLI path (`process_turn()` called the old way, no
+  `allow_memory_extraction` argument) still proposes `pending_memory`
+  normally — including in combination with an uploaded document in the
+  same conversation, which was the one combination not explicitly
+  tested in the original build.
+- Conversation rename/pin/delete, unrelated to this change, spot-checked
+  as a brief regression check — still 200 across the board.
+
+### One informational note, not a bug
+Hitting the removed `/api/memory/edit` or `/api/memory/confirm` with
+POST now returns 405, not 404. This isn't a leftover route — `app.
+url_map.iter_rules()` confirms neither is registered — it's Flask's
+static-file-serving catch-all (`static_url_path=""`) intercepting any
+undefined path under the app root: POST gets 405 (the catch-all only
+serves GET/HEAD/OPTIONS), GET gets 404 (no such file on disk). This is
+pre-existing behavior for *any* undefined path on this app, not
+something this change introduced — worth knowing if anyone's ever
+debugging "why did a made-up endpoint return 405 instead of 404," not
+worth changing.
+
+### Verification
+Set up a fresh venv and `.env` (`ASTI_LOCAL_MODEL=qwen2.5:14b`, matching
+the current real default) in the isolated worktree, confirmed Ollama
+reachable. All backend files byte-compiled cleanly. Every test above
+ran against the real Flask test client / real `process_turn()`, not
+mocked. No real Carter data exists in this worktree, so the destructive
+Settings actions were run for real rather than logic-checked.
