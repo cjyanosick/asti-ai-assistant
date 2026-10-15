@@ -3050,3 +3050,57 @@ directly for the prompts that needed prompt-level inspection) in this
 isolated worktree — never against Carter's real data, since none
 exists in this copy. `memory.py`/`llm.py` both byte-compiled cleanly
 after the fix.
+
+## Ask instead of silently dropping an ambiguous correction
+
+### What happened
+Carter's own proposal, in response to the background agent's "pronoun
+fix doesn't generalize" finding from the entry just above: if ASTI
+doesn't understand a correction well enough to be sure, why not just
+ask, instead of guessing or saying nothing? Agreed and built it the
+same day.
+
+### What changed
+New `_AMBIGUOUS_CORRECTION_RE` (llm.py): detects the same short
+verb+pronoun shape behind every failing example found so far — "make/
+change/set/update" immediately followed by "it/that/this" — the same
+structural signal across "instead make it 50k," "no wait, change it to
+tacos," "change that to blue," and "make it Tuesday instead."
+Deliberately not based on asking the model whether *it* thinks it's
+confident — that's the actual root cause of the original bug (a
+confidently-wrong guess), so the detection has to live in Python, not
+in the model's own self-assessment.
+
+`process_turn()` only acts on this when `extract_memory()` has already
+come back `should_remember: False` for a message matching that shape —
+this is the key design choice that keeps it from adding friction to
+the cases that already work (`previous_message` context plus a clear
+enough statement resolves correctly, with no interception). Only the
+cases that would otherwise silently vanish — extraction failing with
+no feedback at all — get intercepted and replaced with a deterministic
+clarifying question ("I want to make sure I update the right thing —
+could you say that a bit more specifically?") instead of the normal
+response for that turn. The user's next message then carries enough of
+its own content for normal extraction to work without needing the
+pronoun resolved at all.
+
+### Verification
+Ran all three of the background agent's confirmed silent-failure cases
+end to end through the real `/api/chat` pipeline with throwaway
+conversations: "no wait, change it to tacos" (after "I want pizza for
+dinner tonight"), "change that to blue" (after "my favorite color is
+red"), and "make it Tuesday instead" (after "lets meet on monday") —
+all three now get the clarifying question instead of vanishing with no
+trace. Re-ran the one case that already worked ("instead make it 75k"
+after "my savings goal is 10k") to confirm it's *not* intercepted —
+still extracts normally, `pending_memory` still proposed correctly, no
+added friction. Also ran a completely unrelated message to confirm
+ordinary chat is unaffected.
+
+### Known, accepted rough edge
+"Set it and forget it" (a stock idiom with no real referent at all)
+matches the same verb+pronoun shape and also triggers the clarifying
+question, which reads a little oddly for that specific input — not
+chased further. It's a rare phrasing, and asking an odd-but-harmless
+question is still a strict improvement over silently losing a real
+correction, which is the failure mode this was built to close.
