@@ -428,6 +428,25 @@ _REQUEST_RE = re.compile(
 _FULL_NAME_RE = re.compile(r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b")
 _OWN_NAME_RE = re.compile(r"\b(my name is|i'm called|call me)\b", re.IGNORECASE)
 
+# Bare pronoun correction ("instead make it 50k", "no wait, change it to
+# tacos") — found 10/14 (background memory/conversation stress test): even
+# with extract_memory()'s previous_message context, most rephrasings of
+# this pattern still come back should_remember=False and get silently
+# dropped, with no indication anything was lost. The model can't be
+# trusted to know when it's this unsure — that's the root cause of the
+# whole bug — so Python detects the shape deterministically instead and
+# asks rather than letting a correction vanish with no feedback. Only
+# fires when extraction already came back empty-handed (see process_turn),
+# so it adds no friction to the cases that already resolve correctly.
+_AMBIGUOUS_CORRECTION_RE = re.compile(
+    r"\b(make|change|set|update)\s+(it|that|this)\b", re.IGNORECASE
+)
+_CLARIFY_AMBIGUOUS_CORRECTION = (
+    "I want to make sure I update the right thing — could you say that a "
+    "bit more specifically? For example, \"my savings goal is now 50k\" "
+    "instead of \"make it 50k\"."
+)
+
 
 def extract_memory(prompt, previous_message=None):
     if is_noninformative(prompt):
@@ -1479,6 +1498,19 @@ def process_turn(conversation_id, user_input, reference=None):
             "key": memory_update["key"],
             "value": memory_update["value"],
         }
+    elif _AMBIGUOUS_CORRECTION_RE.search(user_input):
+        # Ask instead of silently dropping it (10/14) — see
+        # _AMBIGUOUS_CORRECTION_RE's own comment. Replaces the normal
+        # response entirely for this turn, same short-circuit pattern as
+        # the crisis/cloud-status checks above; the user's next message
+        # carries enough context for normal extraction to work on its own.
+        response = _CLARIFY_AMBIGUOUS_CORRECTION
+        try:
+            embedding = generate_embedding(f"{user_input}\n{response}")
+        except requests.RequestException:
+            embedding = None
+        add_memory(conversation_id, user_input, response, embedding=embedding, source="local")
+        return "chat", response, None, "local"
 
     response, source = ask_llm(
         conversation_id, user_input, mode=intent, reference=reference, pending_memory=pending_memory
