@@ -3228,3 +3228,50 @@ reachable. All backend files byte-compiled cleanly. Every test above
 ran against the real Flask test client / real `process_turn()`, not
 mocked. No real Carter data exists in this worktree, so the destructive
 Settings actions were run for real rather than logic-checked.
+
+## Making the document-forces-local rule visible, not just real
+
+### What happened
+Carter asked why the agent was answering locally in a real chat
+("Audi Maintenance") despite Cloud being on. Checked real history
+directly: that conversation has 5 uploaded invoices, and `_route()`'s
+document check (`if list_documents(conversation_id): return "chat"`)
+forces every message in a conversation with any document to answer
+locally, forever — including two messages that had nothing to do with
+the invoices at all ("I want to get into risk, governance and
+compliance in AI security," "does the field pay well"). Carter's call:
+keep the rule exactly as strict as it is — don't loosen it — but make
+it visible where it was previously invisible, right at the control
+that looks like it should be in charge.
+
+### What changed
+A small badge under the header's cloud toggle, hidden unless the active
+conversation has at least one uploaded document: a lock icon plus
+"Locked local — document in this chat," with a tooltip explaining the
+toggle above it still controls every *other* chat, just not this one.
+Deliberately not disabling the toggle itself — it still has a real,
+global effect (it would still change behavior for a different
+conversation, or for this one if the document were removed), so
+disabling it would have been actively misleading, not just redundant.
+
+New `updateCloudLockBadge()` (static/index.html): checks
+`GET /api/conversations/<id>/documents` for the active conversation and
+shows/hides the badge. Called at the four points where a conversation's
+document count can actually change: opening a past conversation,
+starting a new one, finishing an upload, and deleting a document from
+the Documents panel — covering both directions (a chat can newly become
+locked, or become unlocked again if its only document gets removed).
+
+### Verification
+Full structural sweep: HTML-parser validity, brace/paren/bracket
+balance, full-script-block syntax via JavaScriptCore, the
+`getElementById`-vs-`id=` cross-check, and the new lock icon's SVG
+validated as well-formed XML. Exercised the actual endpoint the badge
+depends on through the real upload → delete lifecycle with a throwaway
+conversation: 0 documents on a fresh chat, 1 after upload, 0 again
+after delete — confirming the badge has a correct signal to react to at
+every one of its four trigger points. Live server confirmed serving the
+updated page throughout. Real conversation count checked before and
+after (unrelated to this change — Carter's own concurrent usage, not
+this edit). Actual visual appearance and badge timing in a real browser
+is Carter's to confirm, same caveat as every GUI change this session.
