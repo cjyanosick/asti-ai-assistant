@@ -371,6 +371,20 @@
     opacity: 0.6;
     cursor: default;
   }
+  /* 10/15: distinct from the brief :disabled dim during an in-flight
+     toggle request above — this is a standing "can't touch this while
+     viewing this chat" state, so it reads more deliberately locked:
+     grayscale strips the on/off accent color entirely, and the dashed
+     border reads as "closed" rather than just "momentarily busy." */
+  .cloud-feature.locked, #settings-cloud-toggle.locked {
+    opacity: 0.55;
+    filter: grayscale(0.85);
+    cursor: not-allowed;
+    border-style: dashed;
+  }
+  .cloud-feature.locked .switch-lg, #settings-cloud-toggle.locked .switch-lg {
+    cursor: not-allowed;
+  }
   .cloud-feature-icon { display: flex; align-items: center; }
   /* 10/14: the cloud toggle's icon is a single static SVG (plug + cord +
      cloud) — CSS alone animates it between states, driven off the same
@@ -1662,9 +1676,12 @@ async function updateCloudLockBadge() {
   try {
     const res = await fetch(`/api/conversations/${activeConversationId}/documents`);
     const data = res.ok ? await res.json() : { documents: [] };
-    cloudLockBadge.hidden = data.documents.length === 0;
+    const locked = data.documents.length > 0;
+    cloudLockBadge.hidden = !locked;
+    applyCloudLockState(locked);
   } catch (e) {
     cloudLockBadge.hidden = true;
+    applyCloudLockState(false);
   }
 }
 
@@ -2333,6 +2350,31 @@ function renderCloudToggle(allowCloud) {
   }
 }
 
+// Document-forces-local lock (10/15, stronger follow-up to the badge
+// alone): Carter's call after discussing the tradeoff — the toggle still
+// controls every *other* chat, so this doesn't change the toggle's real
+// effect, only how it looks and behaves while viewing a chat where it
+// genuinely can't do anything. documentLockActive gates the click
+// handler directly (not just the disabled attribute, which setCloudAllowed's
+// own busy-state cycle also touches) so the lock can't be raced open by a
+// click landing mid-request.
+let documentLockActive = false;
+const CLOUD_LOCK_TITLE = "This chat has an uploaded document — every message here stays " +
+  "local no matter what this switch shows. The switch still controls every other chat.";
+for (const t of cloudToggleEls) {
+  if (t.btn) t.btn.dataset.unlockedTitle = t.btn.title || "";
+}
+
+function applyCloudLockState(locked) {
+  documentLockActive = locked;
+  for (const t of cloudToggleEls) {
+    if (!t.btn) continue;
+    t.btn.disabled = locked;
+    t.btn.classList.toggle("locked", locked);
+    t.btn.title = locked ? CLOUD_LOCK_TITLE : t.btn.dataset.unlockedTitle;
+  }
+}
+
 async function loadCloudToggle() {
   try {
     const res = await fetch("/api/settings/cloud");
@@ -2348,6 +2390,7 @@ async function loadCloudToggle() {
 }
 
 async function setCloudAllowed(next) {
+  if (documentLockActive) return;
   for (const t of cloudToggleEls) {
     if (t.btn) t.btn.disabled = true;
   }
@@ -2365,7 +2408,7 @@ async function setCloudAllowed(next) {
     // leave the label as-is; user can retry the click
   } finally {
     for (const t of cloudToggleEls) {
-      if (t.btn) t.btn.disabled = false;
+      if (t.btn) t.btn.disabled = documentLockActive;
     }
   }
 }
