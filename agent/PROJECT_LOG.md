@@ -3275,3 +3275,54 @@ updated page throughout. Real conversation count checked before and
 after (unrelated to this change — Carter's own concurrent usage, not
 this edit). Actual visual appearance and badge timing in a real browser
 is Carter's to confirm, same caveat as every GUI change this session.
+
+## Cloud toggle disabled, not just badged, while a chat's document locks it
+
+### What happened
+Carter asked whether the cloud toggle could be made impossible to
+switch on while a document is in the chat. Flagged the real tradeoff
+first: the toggle is a *global* setting, while the document-forces-
+local rule is already a *hard, backend-enforced* rule scoped to just
+that one conversation — flipping the toggle while viewing a document
+chat already does nothing to that chat either way, so disabling it
+outright would only cost the ability to change the setting for every
+*other* chat, for zero actual safety gain. Carter's call after hearing
+that: still wants the stronger visual, specifically so a user can't
+mistake it for interactive. Built that — a real disable, not just a
+badge, with the explicit tradeoff accepted.
+
+### What changed
+`applyCloudLockState(locked)` (static/index.html): disables both cloud
+toggle buttons (header and the Settings-panel mirror), adds a `.locked`
+class for a visually distinct grayscale/dashed-border look (deliberately
+different from the brief `:disabled` dimming already used during an
+in-flight toggle request, so "permanently locked for this chat" doesn't
+read the same as "momentarily busy"), and swaps in an explanatory
+tooltip — restoring each button's original title when unlocked again,
+including the Settings mirror's (which has no title by default).
+`updateCloudLockBadge()` now drives this directly, so it stays in sync
+with the badge at the same four trigger points (open, new chat, upload,
+delete) — one source of truth for both.
+
+`setCloudAllowed()` now returns immediately if `documentLockActive` is
+true, checked explicitly rather than relying on the `disabled` attribute
+alone — the function's own busy-state cycle (`disabled = true` during
+the request, `= false` after) already touches that attribute for an
+unrelated reason, so gating the actual logic on a dedicated flag avoids
+a race where a toggle request in flight could end up re-enabling a
+button that should have stayed locked.
+
+### Verification
+Full structural sweep (HTML-parser validity, brace/paren/bracket
+balance, full-script-block syntax via JavaScriptCore, `getElementById`-
+vs-`id=` cross-check) — clean. Simulated `applyCloudLockState()` in
+isolation against mocked button objects: confirmed both buttons
+correctly disable, gain the `.locked` class, and get the explanatory
+title when locked, and — the part most likely to have a subtle bug —
+correctly restore their *original* titles (including the Settings
+mirror's empty one) when unlocked again, not a stale or blank value.
+Re-confirmed the badge's underlying data source through the real
+upload lifecycle (0 documents on a fresh chat, 1 after upload) via the
+live server. Actual visual appearance of the grayscale/dashed look, and
+whether the lock reads clearly enough in a real browser, is Carter's to
+confirm.
