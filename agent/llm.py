@@ -1429,10 +1429,19 @@ User message:
 
 #input ask
 # input ask
-def process_turn(conversation_id, user_input, reference=None):
+def process_turn(conversation_id, user_input, reference=None, allow_memory_extraction=True):
     # The actual "have a conversation" pipeline — shared by the CLI loop
     # below and app.py's web UI, so both interfaces run identical logic
     # instead of risking two copies drifting apart over time.
+    #
+    # `allow_memory_extraction` (10/14, Carter's call): personal memory is
+    # now CLI-only — the GUI never proposes, confirms, or shows a fact to
+    # save, to keep the chat surface simple. `app.py` passes False; the
+    # CLI leaves the default. False skips the extraction call entirely
+    # (not just hiding its result) — no silent wasted LLM call, and the
+    # ambiguous-correction clarifying question below is skipped too, since
+    # asking "what are you updating?" makes no sense on an interface with
+    # no memory feature to update.
     #
     # `conversation_id`: which chat this turn belongs to (10/14, the
     # ChatGPT-style rework) — the GUI creates a fresh one every time it's
@@ -1474,43 +1483,49 @@ def process_turn(conversation_id, user_input, reference=None):
 
     intent = "chat" if reference else _route(conversation_id, user_input)
 
-    history = load_memory(conversation_id)
-    previous_message = history[-1]["user"] if history else None
-    memory_update = extract_memory(user_input, previous_message=previous_message)
-
-    # Extraction-noise fix (flagged in CLAUDE.md's GUI Polish list, fixed
-    # 10/13): personal_memory is no longer written silently just because
-    # the model decided should_remember=True. extract_memory() still gets
-    # things wrong sometimes (e.g. "other: asti_who_am_i = 'asti'" from an
-    # ambiguous exchange), and for a regulated-industry audience a wrong
-    # stored "fact" is closer to a compliance liability than a cosmetic
-    # bug. The proposed fact is surfaced to the user as `pending_memory`
-    # instead — the CLI prompts for y/N right after the response; the GUI
-    # shows a Save/Discard chip — and only written via update_personal_memory()
-    # if the user actually confirms it (CLI inline, GUI's new
-    # /api/memory/confirm route). ask_llm() still sees the proposed value
-    # for this turn's response (see its pending_memory handling) so the
-    # reply still reads naturally, without it being committed yet.
+    # Personal memory is CLI-only (10/14, Carter's call) — see
+    # allow_memory_extraction's own comment above. Everything in this
+    # block, including the ambiguous-correction clarifying question, is
+    # skipped outright on the GUI path rather than run and then hidden.
     pending_memory = None
-    if memory_update["should_remember"]:
-        pending_memory = {
-            "category": memory_update["category"],
-            "key": memory_update["key"],
-            "value": memory_update["value"],
-        }
-    elif _AMBIGUOUS_CORRECTION_RE.search(user_input):
-        # Ask instead of silently dropping it (10/14) — see
-        # _AMBIGUOUS_CORRECTION_RE's own comment. Replaces the normal
-        # response entirely for this turn, same short-circuit pattern as
-        # the crisis/cloud-status checks above; the user's next message
-        # carries enough context for normal extraction to work on its own.
-        response = _CLARIFY_AMBIGUOUS_CORRECTION
-        try:
-            embedding = generate_embedding(f"{user_input}\n{response}")
-        except requests.RequestException:
-            embedding = None
-        add_memory(conversation_id, user_input, response, embedding=embedding, source="local")
-        return "chat", response, None, "local"
+    if allow_memory_extraction:
+        history = load_memory(conversation_id)
+        previous_message = history[-1]["user"] if history else None
+        memory_update = extract_memory(user_input, previous_message=previous_message)
+
+        # Extraction-noise fix (flagged in CLAUDE.md's GUI Polish list,
+        # fixed 10/13): personal_memory is never written just because the
+        # model decided should_remember=True. extract_memory() still gets
+        # things wrong sometimes (e.g. "other: asti_who_am_i = 'asti'"
+        # from an ambiguous exchange), and for a regulated-industry
+        # audience a wrong stored "fact" is closer to a compliance
+        # liability than a cosmetic bug. The proposed fact is surfaced as
+        # `pending_memory` instead — the CLI prompts for y/N right after
+        # the response — and only written via update_personal_memory() if
+        # the user actually confirms it. ask_llm() still sees the
+        # proposed value for this turn's response (see its pending_memory
+        # handling) so the reply still reads naturally, without it being
+        # committed yet.
+        if memory_update["should_remember"]:
+            pending_memory = {
+                "category": memory_update["category"],
+                "key": memory_update["key"],
+                "value": memory_update["value"],
+            }
+        elif _AMBIGUOUS_CORRECTION_RE.search(user_input):
+            # Ask instead of silently dropping it (10/14) — see
+            # _AMBIGUOUS_CORRECTION_RE's own comment. Replaces the normal
+            # response entirely for this turn, same short-circuit pattern
+            # as the crisis/cloud-status checks above; the user's next
+            # message carries enough context for normal extraction to
+            # work on its own.
+            response = _CLARIFY_AMBIGUOUS_CORRECTION
+            try:
+                embedding = generate_embedding(f"{user_input}\n{response}")
+            except requests.RequestException:
+                embedding = None
+            add_memory(conversation_id, user_input, response, embedding=embedding, source="local")
+            return "chat", response, None, "local"
 
     response, source = ask_llm(
         conversation_id, user_input, mode=intent, reference=reference, pending_memory=pending_memory

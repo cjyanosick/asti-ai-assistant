@@ -577,49 +577,6 @@
     cursor: default;
   }
   .source-badge svg { flex-shrink: 0; }
-  .memory-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-    padding: 6px 10px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .memory-chip-text {
-    flex: 1;
-  }
-  .memory-chip-btn {
-    border: none;
-    border-radius: 7px;
-    padding: 4px 11px;
-    font-size: 11px;
-    cursor: pointer;
-    transition: background-color 0.15s ease, filter 0.15s ease;
-  }
-  .memory-chip-save {
-    background: var(--accent-gradient);
-    color: #fff;
-  }
-  .memory-chip-save:hover:not(:disabled) {
-    filter: brightness(1.1);
-    box-shadow: 0 2px 10px rgba(232, 128, 92, 0.3);
-  }
-  .memory-chip-discard {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-  }
-  .memory-chip-discard:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.06);
-  }
-  .memory-chip-btn:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
   .thinking {
     align-self: flex-start;
     padding: 12px 14px;
@@ -890,14 +847,6 @@
     background: rgba(255, 255, 255, 0.06);
     border-color: #3d3d3d;
   }
-  .memory-category {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-dim);
-    margin: 12px 0 6px;
-  }
-  .memory-category:first-child { margin-top: 0; }
   .memory-row {
     display: flex;
     align-items: center;
@@ -1124,7 +1073,6 @@
 
       <div class="header-right">
         <button id="status-open" class="icon-btn" title="Diagnostics"></button>
-        <button id="memory-open" class="icon-btn" title="Personal Memory"></button>
         <button id="recall-open" class="icon-btn" title="Semantic Recall"></button>
         <button id="settings-open" class="icon-btn" title="Settings"></button>
       </div>
@@ -1174,35 +1122,6 @@
   </div>
 </div>
 
-<div id="memory-backdrop" class="modal-backdrop" hidden>
-  <div class="modal">
-    <div class="modal-header">
-      <h2>Personal Memory</h2>
-      <button id="memory-close" class="modal-close"></button>
-    </div>
-    <p class="panel-intro">Facts ASTI remembers about you across every conversation —
-      stored and used only on this device.</p>
-    <div class="modal-actions">
-      <div id="memory-summary" class="status-note" style="margin-right: auto;"></div>
-      <button id="memory-export">Export</button>
-    </div>
-    <div id="memory-list" style="overflow-y: auto;"></div>
-    <div class="form-row">
-      <select id="memory-form-category">
-        <option value="identity">identity</option>
-        <option value="preferences">preferences</option>
-        <option value="goals">goals</option>
-        <option value="projects">projects</option>
-        <option value="people">people</option>
-        <option value="other">other</option>
-      </select>
-      <input id="memory-form-key" class="key" type="text" placeholder="key">
-      <input id="memory-form-value" class="value" type="text" placeholder="value">
-      <button id="memory-form-save">Save</button>
-    </div>
-    <div id="memory-form-status" class="form-status"></div>
-  </div>
-</div>
 
 <div id="recall-backdrop" class="modal-backdrop" hidden>
   <div class="modal">
@@ -1449,14 +1368,12 @@ document.getElementById("new-chat-btn").innerHTML = icon("plus") + " New chat";
 document.getElementById("sidebar-collapse").innerHTML = icon("chevronLeft");
 document.getElementById("sidebar-toggle").innerHTML = icon("menu");
 document.getElementById("status-open").innerHTML = icon("barChart");
-document.getElementById("memory-open").innerHTML = icon("database");
 document.getElementById("recall-open").innerHTML = icon("search");
 document.getElementById("settings-open").innerHTML = icon("settings");
 document.getElementById("reference-clear").innerHTML = icon("x", 14);
 document.getElementById("attach").innerHTML = icon("paperclip");
 document.getElementById("documents-open").innerHTML = icon("file");
 document.getElementById("status-close").innerHTML = icon("x", 18);
-document.getElementById("memory-close").innerHTML = icon("x", 18);
 document.getElementById("recall-close").innerHTML = icon("x", 18);
 document.getElementById("settings-close").innerHTML = icon("x", 18);
 document.getElementById("documents-close").innerHTML = icon("x", 18);
@@ -1508,14 +1425,10 @@ function addMessage(role, text, intent, pendingMemory, source) {
     body.className = "msg-body";
     body.innerHTML = renderMarkdown(text);
     div.appendChild(body);
-
-    // Extraction-noise fix (10/13): personal_memory is never written
-    // silently anymore. When this turn extracted a candidate fact,
-    // /api/chat returns it unsaved as pendingMemory — show it here and
-    // only call /api/memory/confirm if the user actually clicks Save.
-    if (pendingMemory) {
-      div.appendChild(buildMemoryChip(pendingMemory));
-    }
+    // Personal memory is CLI-only (10/14, Carter's call) — pendingMemory
+    // is always null from the GUI's /api/chat now, so there's nothing to
+    // show here. The parameter stays on addMessage() for now rather than
+    // touching every call site just to drop it.
   } else {
     div.textContent = text;
   }
@@ -1538,53 +1451,6 @@ function addMessage(role, text, intent, pendingMemory, source) {
   return div;
 }
 
-function buildMemoryChip(pendingMemory) {
-  const chip = document.createElement("div");
-  chip.className = "memory-chip";
-
-  const text = document.createElement("span");
-  text.className = "memory-chip-text";
-  text.textContent =
-    `Remember ${pendingMemory.category} → ${pendingMemory.key} = ${pendingMemory.value}?`;
-  chip.appendChild(text);
-
-  const saveBtn = document.createElement("button");
-  saveBtn.className = "memory-chip-btn memory-chip-save";
-  saveBtn.textContent = "Save";
-
-  const discardBtn = document.createElement("button");
-  discardBtn.className = "memory-chip-btn memory-chip-discard";
-  discardBtn.textContent = "Discard";
-
-  saveBtn.addEventListener("click", async () => {
-    saveBtn.disabled = true;
-    discardBtn.disabled = true;
-    try {
-      const res = await fetch("/api/memory/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pendingMemory),
-      });
-      text.textContent = res.ok
-        ? `Saved: ${pendingMemory.category}.${pendingMemory.key} = ${pendingMemory.value}`
-        : "Could not save — try the Memory panel instead.";
-    } catch (e) {
-      text.textContent = "Could not save — try the Memory panel instead.";
-    }
-    saveBtn.remove();
-    discardBtn.remove();
-  });
-
-  discardBtn.addEventListener("click", () => {
-    text.textContent = "Discarded.";
-    saveBtn.remove();
-    discardBtn.remove();
-  });
-
-  chip.appendChild(saveBtn);
-  chip.appendChild(discardBtn);
-  return chip;
-}
 
 function addThinking() {
   // Animated version of the logo's sparkle mark, spinning + pulsing in
@@ -2266,171 +2132,6 @@ recallInput.addEventListener("keydown", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !recallBackdrop.hidden) closeRecall();
-});
-
-// --- Memory vault modal ---
-const memoryBackdrop = document.getElementById("memory-backdrop");
-const memoryOpen = document.getElementById("memory-open");
-const memoryClose = document.getElementById("memory-close");
-const memoryList = document.getElementById("memory-list");
-const memoryExportBtn = document.getElementById("memory-export");
-const memoryFormCategory = document.getElementById("memory-form-category");
-const memoryFormKey = document.getElementById("memory-form-key");
-const memoryFormValue = document.getElementById("memory-form-value");
-const memoryFormSave = document.getElementById("memory-form-save");
-const memoryFormStatus = document.getElementById("memory-form-status");
-const memorySummary = document.getElementById("memory-summary");
-
-async function forgetMemoryEntry(category, key) {
-  try {
-    const res = await fetch("/api/memory/forget", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, key }),
-    });
-    if (res.ok) loadMemoryList();
-  } catch (e) {
-    // ignore — list just won't refresh
-  }
-}
-
-async function loadMemoryList() {
-  memoryList.innerHTML = '<div class="memory-empty">Loading…</div>';
-
-  try {
-    const res = await fetch("/api/memory");
-    if (!res.ok) {
-      memoryList.innerHTML = '<div class="memory-empty">Could not load memory.</div>';
-      return;
-    }
-
-    const data = await res.json();
-    memoryList.innerHTML = "";
-    let anyEntries = false;
-    let totalEntries = 0;
-    let populatedCategories = 0;
-    const totalCategories = Object.keys(data).length;
-
-    for (const category of Object.keys(data).sort()) {
-      const entries = data[category];
-      const keys = Object.keys(entries).sort();
-      if (!keys.length) continue;
-      anyEntries = true;
-      totalEntries += keys.length;
-      populatedCategories++;
-
-      const heading = document.createElement("div");
-      heading.className = "memory-category";
-      heading.textContent = category + " (" + keys.length + ")";
-      memoryList.appendChild(heading);
-
-      for (const key of keys) {
-        const value = entries[key];
-        const row = document.createElement("div");
-        row.className = "memory-row";
-
-        const kv = document.createElement("div");
-        kv.className = "memory-kv";
-        kv.innerHTML = '<span class="memory-key">' + escapeHtml(key) +
-          ':</span> ' + escapeHtml(String(value));
-        row.appendChild(kv);
-
-        const editBtn = document.createElement("button");
-        editBtn.innerHTML = icon("edit", 13);
-        editBtn.title = "Edit";
-        editBtn.addEventListener("click", () => {
-          memoryFormCategory.value = category;
-          memoryFormKey.value = key;
-          memoryFormValue.value = value;
-          memoryFormValue.focus();
-        });
-        row.appendChild(editBtn);
-
-        const delBtn = document.createElement("button");
-        delBtn.innerHTML = icon("x", 13);
-        delBtn.title = "Delete";
-        delBtn.addEventListener("click", () => forgetMemoryEntry(category, key));
-        row.appendChild(delBtn);
-
-        memoryList.appendChild(row);
-      }
-    }
-
-    if (!anyEntries) {
-      memoryList.innerHTML = '<div class="memory-empty">Nothing stored yet.</div>';
-      memorySummary.textContent = "";
-    } else {
-      memorySummary.textContent = totalEntries + " fact" + (totalEntries === 1 ? "" : "s") +
-        " across " + populatedCategories + "/" + totalCategories + " categories";
-    }
-  } catch (e) {
-    memoryList.innerHTML = '<div class="memory-empty">Could not reach ASTI.</div>';
-    memorySummary.textContent = "";
-  }
-}
-
-function openMemory() {
-  memoryBackdrop.hidden = false;
-  memoryFormStatus.textContent = "";
-  memorySummary.textContent = "";
-  loadMemoryList();
-}
-function closeMemory() {
-  memoryBackdrop.hidden = true;
-}
-
-memoryOpen.addEventListener("click", openMemory);
-memoryClose.addEventListener("click", closeMemory);
-memoryBackdrop.addEventListener("click", (e) => {
-  if (e.target === memoryBackdrop) closeMemory();
-});
-
-memoryFormSave.addEventListener("click", async () => {
-  const category = memoryFormCategory.value;
-  const key = memoryFormKey.value.trim();
-  const value = memoryFormValue.value.trim();
-
-  if (!key || !value) {
-    memoryFormStatus.textContent = "Key and value are both required.";
-    return;
-  }
-
-  memoryFormStatus.textContent = "Saving…";
-  try {
-    const res = await fetch("/api/memory/edit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, key, value }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      memoryFormStatus.textContent = "Error: " + (err.error || res.statusText);
-      return;
-    }
-    memoryFormKey.value = "";
-    memoryFormValue.value = "";
-    memoryFormStatus.textContent = "Saved.";
-    loadMemoryList();
-  } catch (e) {
-    memoryFormStatus.textContent = "Could not reach ASTI.";
-  }
-});
-
-memoryExportBtn.addEventListener("click", async () => {
-  memoryFormStatus.textContent = "Exporting…";
-  try {
-    const res = await fetch("/api/memory/export", { method: "POST" });
-    const data = await res.json();
-    memoryFormStatus.textContent = res.ok
-      ? "Exported to " + data.filename
-      : "Error: " + (data.error || res.statusText);
-  } catch (e) {
-    memoryFormStatus.textContent = "Could not reach ASTI.";
-  }
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !memoryBackdrop.hidden) closeMemory();
 });
 
 // --- Diagnostics modal ---

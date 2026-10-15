@@ -3104,3 +3104,62 @@ question, which reads a little oddly for that specific input — not
 chased further. It's a rare phrasing, and asking an odd-but-harmless
 question is still a strict improvement over silently losing a real
 correction, which is the failure mode this was built to close.
+
+## Personal memory removed from the GUI — CLI-only going forward
+
+### What happened
+Carter's call, after discussing whether a local-only agent still needs
+a user-facing way to inspect/manage what it remembers (it does — for
+correctness/control, not privacy, since nothing here was ever about
+hiding data from Carter himself): the Memory Vault panel's actual
+list/edit UI was the thing complicating the GUI and risking confusing
+people, more than the underlying feature. Decision: drop personal
+memory from the GUI entirely — no panel, no Save/Discard chip, nothing
+proposed or shown — and keep it as a CLI-only feature. Confirmed via
+explicit options before building: GUI chats should never prompt to
+save anything, not even silently auto-save in the background.
+
+### What changed
+**Backend.** `process_turn()` (llm.py) takes a new
+`allow_memory_extraction` flag (default `True`, so the CLI's call site
+needed no changes at all). `app.py`'s `/api/chat` route passes `False`.
+When `False`, the entire extraction block — including today's new
+ambiguous-correction clarifying question — is skipped outright, not
+just run and hidden: no wasted LLM call, and no reason to ask "what are
+you updating?" on an interface with no memory feature to update in the
+first place. `pending_memory` is now always `None` from the GUI.
+Removed `/api/memory/edit` and `/api/memory/confirm` (app.py) — both
+become fully orphaned once the Vault panel's add/edit form and the
+chip's Save button are gone; `GET /api/memory`, `/api/memory/forget`,
+and `/api/memory/export` stay, since Settings' Export and "Forget all
+remembered facts" still use them and don't involve the "formatting the
+data" complexity this was actually about.
+
+**Frontend.** Removed entirely: the header's Memory icon button, the
+whole Memory Vault modal (list, add/edit form, category headings), the
+Save/Discard chip (`buildMemoryChip()` and its call site in
+`addMessage()`), and the now-dead `.memory-chip*`/`.memory-category`
+CSS. Kept `.memory-row`/`.memory-empty`/`.memory-kv`/`.memory-key` —
+the Documents panel (built earlier today) reuses these same classes,
+so removing them would have broken a different, unrelated feature.
+
+### Verification
+Full structural sweep: HTML-parser validity, brace/paren/bracket
+balance, full-script-block syntax via JavaScriptCore, and the
+`getElementById`-vs-`id=` cross-check (clean, no dangling references to
+any removed id). Confirmed end to end against the live server: a clear
+preference statement sent through `/api/chat` now returns
+`pending_memory: null` and a normal conversational reply (nothing
+written to `personal_memory.json`); a verb+pronoun phrase unrelated to
+memory ("can you change that file to a different format") correctly
+does *not* trigger the ambiguous-correction clarifying question anymore,
+confirming that check is properly gated off along with everything else.
+The existing false-save-claim correction
+(`_correct_save_claims()`) was re-checked against this new reality and
+needed no changes — it already said "Nothing was saved... ASTI only
+saves facts you confirm" whenever `pending_memory` is `None`, which is
+now *always* true on the GUI path, so the existing message is still
+exactly accurate. Separately confirmed the CLI path (`process_turn()`
+with no `allow_memory_extraction` argument) is completely unaffected —
+still proposes `pending_memory` normally. Real conversation count
+checked before and after (7, unchanged).

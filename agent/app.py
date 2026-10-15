@@ -7,7 +7,6 @@ from flask import Flask, request, jsonify, send_from_directory
 from llm import (
     process_turn,
     summarize_uploaded_file,
-    ALLOWED_MEMORY_CATEGORIES,
     build_diagnostics_report,
     build_diagnostics_data,
 )
@@ -22,7 +21,6 @@ from memory import (
     delete_turns_for_document,
     delete_turns_by_doc_ids,
     load_personal_memory,
-    update_personal_memory,
     forget_personal_memory,
     export_personal_memory,
 )
@@ -61,7 +59,13 @@ def chat():
     if not conversation_id:
         return jsonify({"error": "conversation_id is required"}), 400
 
-    intent, response, pending_memory, source = process_turn(conversation_id, message, reference=reference)
+    # Personal memory is CLI-only (10/14, Carter's call) — the GUI never
+    # proposes, confirms, or shows a fact to save, to keep the chat
+    # surface simple. pending_memory is always None on this path now; see
+    # process_turn()'s own comment on allow_memory_extraction.
+    intent, response, pending_memory, source = process_turn(
+        conversation_id, message, reference=reference, allow_memory_extraction=False
+    )
 
     return jsonify({
         "intent": intent,
@@ -228,51 +232,6 @@ def read_file():
 @app.route("/api/memory", methods=["GET"])
 def get_memory():
     return jsonify(load_personal_memory())
-
-
-@app.route("/api/memory/edit", methods=["POST"])
-def edit_memory():
-    data = request.get_json(silent=True) or {}
-    category = (data.get("category") or "").strip()
-    key = (data.get("key") or "").strip()
-    value = (data.get("value") or "").strip()
-
-    if not category or not key or not value:
-        return jsonify({"error": "category, key, and value are all required"}), 400
-
-    if category not in ALLOWED_MEMORY_CATEGORIES:
-        return jsonify({
-            "error": f"unknown category '{category}'",
-            "valid_categories": sorted(ALLOWED_MEMORY_CATEGORIES),
-        }), 400
-
-    update_personal_memory(category, key, value)
-    return jsonify({"status": "ok"})
-
-
-@app.route("/api/memory/confirm", methods=["POST"])
-def confirm_memory():
-    # Extraction-noise fix (10/13): /api/chat no longer saves an extracted
-    # fact to personal_memory.json by itself — it returns it as
-    # `pending_memory` and the GUI shows a Save/Discard chip under that
-    # message. Nothing is written unless the user explicitly hits Save,
-    # which calls this route. Same validation as /api/memory/edit.
-    data = request.get_json(silent=True) or {}
-    category = (data.get("category") or "").strip()
-    key = (data.get("key") or "").strip()
-    value = (data.get("value") or "").strip()
-
-    if not category or not key or not value:
-        return jsonify({"error": "category, key, and value are all required"}), 400
-
-    if category not in ALLOWED_MEMORY_CATEGORIES:
-        return jsonify({
-            "error": f"unknown category '{category}'",
-            "valid_categories": sorted(ALLOWED_MEMORY_CATEGORIES),
-        }), 400
-
-    update_personal_memory(category, key, value)
-    return jsonify({"status": "ok"})
 
 
 @app.route("/api/memory/forget", methods=["POST"])
