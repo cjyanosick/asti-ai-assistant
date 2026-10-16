@@ -3326,3 +3326,73 @@ upload lifecycle (0 documents on a fresh chat, 1 after upload) via the
 live server. Actual visual appearance of the grayscale/dashed look, and
 whether the lock reads clearly enough in a real browser, is Carter's to
 confirm.
+
+## v1 wrap-up: calling the personal-use core feature-complete
+
+Carter: "I want to finish this project so that I can at least say that
+it is complete even if I need to work on it more but I at least want a
+finished product." Not a new feature — a deliberate pass to confirm
+the engineering roadmap's personal-use core actually holds together as
+a whole, close out the small decisions still sitting open from earlier
+in the session, and write down the honest line between "done" and
+"known, accepted, or someone else's call."
+
+### What changed
+- `config.py`'s hardcoded `DEFAULT_MODEL` fallback updated from
+  `llama3:latest` to `qwen2.5:14b` — the 10/14 model swap only ever
+  lived in `.env` (gitignored on purpose, see that milestone), which
+  meant a fresh clone with no `.env` override would silently get the
+  weaker model back. The live override still wins when set; this just
+  fixes what a clean checkout defaults to.
+- CLAUDE.md's "Repo" section corrected — it still said "currently
+  defaulting to `llama3:latest`," stale since the 10/14 swap.
+- New "Project status (10/15)" summary added right under the North
+  Star: what "feature-complete" means here, the known/accepted
+  limitations (citation fabrication, conversation-scoped document
+  search, local-model synthesis ceiling), the two actions only Carter
+  can take (repo visibility, LICENSE — both real decisions, not
+  defaults to guess at), and the explicit statement that the Go-to-
+  Market roadmap was never a precondition for this milestone.
+
+### Re-checked, not re-opened
+Two items carried as "open" into this pass turned out to already be
+resolved on inspection, just not cross-referenced together before:
+- The two "possibly garbled" `personal_memory.json` entries flagged
+  earlier: `goals.savings_target = "2026"` is the exact stale value the
+  10/13 fix's own writeup already documents as "left as-is on disk,
+  Carter's call" — not a new decision to make, already made.
+  `preferences.preference_for_aisle_seats_when_flying` and
+  `goals.basketball_learning_goal = "this year"` are both just
+  inelegant key names, not wrong content — nothing to fix.
+- Whether Settings' Export/"Forget all" buttons should come out of the
+  GUI too, for consistency with the Vault/chip removal: roadmap item 1
+  already states the decision (kept — no formatting complexity, still
+  real callers). Already settled, not still open.
+
+### Verification
+Live smoke test against the real running server, throwaway
+conversations cleaned up immediately after each: plain local chat,
+cloud-eligible general-knowledge routing, crisis detection, and a
+fresh document-upload lock, each via direct HTTP calls to the real
+`/api/chat` / `/api/read` / `/api/conversations` endpoints — all
+correct. One result that looked like a bug on first read, wasn't:
+asking an unrelated factual question two turns after a crisis message
+still got a crisis-support reply instead of an answer. Checked the
+code before "fixing" it — `_in_crisis_conversation()`'s 3-turn
+stickiness is deliberate, documented behavior ("the most important
+turns to handle carefully"), not a routing bug; left alone. Confirmed
+real data untouched throughout (conversations_total and
+documents_total both matched their pre-test values after cleanup:
+9 and 5).
+
+### Still genuinely open, not resolved here
+- Fabricated case citations — stays on the fix list per Carter's
+  explicit instruction; mitigated (automatic warning), not fixed.
+- Repo visibility (public → private) and whether to add a LICENSE
+  file, and what kind — both real decisions for Carter, not something
+  to guess at or default on. No `gh` CLI/token available in this
+  environment either way, so the visibility change has to happen at
+  github.com/cjyanosick/asti-ai-assistant/settings → Danger Zone in a
+  browser regardless.
+- The Go-to-Market roadmap (compliance mapping, consumer packaging,
+  demand validation) — untouched, by design, not part of this pass.
