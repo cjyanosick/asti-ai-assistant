@@ -9,7 +9,7 @@ load_dotenv()
 # slice: config-driven provider/model choice). Defaults match what's been
 # running since roadmap #4/#5 — unset envs change nothing.
 DEFAULT_PROVIDER = os.environ.get("ASTI_LOCAL_PROVIDER", "ollama")
-DEFAULT_MODEL = os.environ.get("ASTI_LOCAL_MODEL", "llama3:latest")
+DEFAULT_MODEL = os.environ.get("ASTI_LOCAL_MODEL", "qwen2.5:14b")
 
 # Embeddings for semantic recall over conversation history (roadmap #7).
 # Always local — sending conversation history to a cloud embeddings API
